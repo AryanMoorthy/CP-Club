@@ -203,7 +203,7 @@ export default function ProblemSheets() {
 
                 <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between">
                   <span className="text-xs text-slate-400">
-                    By {sheet.author?.name || 'Club Mentor'}
+                    By {sheet.createdBy?.name || 'Club Mentor'}
                   </span>
                   <Link
                     to={`/sheets/${sheet._id}`}

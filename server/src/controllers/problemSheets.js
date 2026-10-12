@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import ProblemSheet from '../models/ProblemSheet.js';
 import SolvedProblem from '../models/SolvedProblem.js';
 import { problemSheetSchema } from '../validators/schemas.js';
@@ -62,6 +63,10 @@ export async function listSheets(req, res, next) {
 
 export async function getSheet(req, res, next) {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: 'Sheet not found' });
+    }
+
     const sheet = await ProblemSheet.findById(req.params.id)
       .populate('createdBy', 'name email')
       .lean();

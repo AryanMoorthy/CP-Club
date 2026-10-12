@@ -147,7 +147,7 @@ export default function SheetDetail() {
                 {sheet.difficulty}
               </span>
               <span className="text-xs text-slate-400 font-mono">
-                Curated by {sheet.author?.name || 'Mentor'}
+                Curated by {sheet.createdBy?.name || 'Mentor'}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
