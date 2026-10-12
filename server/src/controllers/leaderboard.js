@@ -14,25 +14,25 @@ export async function ratingLeaderboard(req, res, next) {
     const batchFilter = req.query.batch ? { batch: req.query.batch } : {};
 
     const users = await User.find({
-      role: 'student',
+      isActive: true,
       'codeforcesProfile.rating': { $exists: true, $ne: null },
       ...batchFilter,
     })
-      .select('name email batch codeforcesHandle codeforcesProfile lastCodeforcesSync')
+      .select('name email batch role codeforcesHandle codeforcesProfile lastCodeforcesSync')
       .sort({ 'codeforcesProfile.rating': -1 })
       .skip(skip)
       .limit(limit)
       .lean();
 
     const total = await User.countDocuments({
-      role: 'student',
+      isActive: true,
       'codeforcesProfile.rating': { $exists: true, $ne: null },
       ...batchFilter,
     });
 
     const ranked = users.map((u, i) => ({
       rank: skip + i + 1,
-      user: { _id: u._id, name: u.name, email: u.email, batch: u.batch, codeforcesHandle: u.codeforcesHandle },
+      user: { _id: u._id, name: u.name, email: u.email, batch: u.batch, role: u.role, codeforcesHandle: u.codeforcesHandle },
       rating: u.codeforcesProfile?.rating || null,
       maxRating: u.codeforcesProfile?.maxRating || null,
       cfRank: u.codeforcesProfile?.rank || null,
@@ -69,7 +69,7 @@ export async function weeklyLeaderboard(req, res, next) {
         },
       },
       { $unwind: '$user' },
-      { $match: { 'user.role': 'student', 'user.isActive': true } },
+      { $match: { 'user.isActive': true } },
     ]);
 
     const ranked = agg.map((entry, i) => ({
@@ -79,6 +79,7 @@ export async function weeklyLeaderboard(req, res, next) {
         name: entry.user.name,
         email: entry.user.email,
         batch: entry.user.batch,
+        role: entry.user.role,
         codeforcesHandle: entry.user.codeforcesHandle,
       },
       weeklyCount: entry.weeklyCount,
@@ -100,31 +101,22 @@ export async function improvementLeaderboard(req, res, next) {
   try {
     // Fetch all users with rating history available
     const users = await User.find({
-      role: 'student',
+      isActive: true,
       'codeforcesProfile.rating': { $exists: true, $ne: null },
     })
-      .select('name email batch codeforcesHandle codeforcesProfile')
+      .select('name email batch role codeforcesHandle codeforcesProfile lastCodeforcesSync')
       .lean();
-
-    // We'll define improvement as (current rating - rating 30 days ago).
-    // Since we only store current + max, we approximate using ratingHistory from CF.
-    // For simplicity, rank by maxRating - current which shows potential; 
-    // or rank by currentRating - (oldest stored rating). 
-    // We don't have historical snapshots, so we rank by current rating for now
-    // and clearly label it. Users are encouraged to sync.
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // Filter users synced in last 30 days
     const eligible = users.filter((u) => u.lastCodeforcesSync && new Date(u.lastCodeforcesSync) > thirtyDaysAgo);
 
-    // Note: without stored historical rating snapshots we cannot compute accurate 30-day improvement.
-    // We report current rating with clear context.
     const ranked = eligible
       .sort((a, b) => (b.codeforcesProfile?.rating || 0) - (a.codeforcesProfile?.rating || 0))
       .map((u, i) => ({
         rank: i + 1,
-        user: { _id: u._id, name: u.name, email: u.email, batch: u.batch, codeforcesHandle: u.codeforcesHandle },
+        user: { _id: u._id, name: u.name, email: u.email, batch: u.batch, role: u.role, codeforcesHandle: u.codeforcesHandle },
         currentRating: u.codeforcesProfile?.rating || null,
         maxRating: u.codeforcesProfile?.maxRating || null,
         cfRank: u.codeforcesProfile?.rank || null,
@@ -134,7 +126,7 @@ export async function improvementLeaderboard(req, res, next) {
       success: true,
       data: {
         leaderboard: ranked,
-        note: 'Ranked by current Codeforces rating among users synced in the last 30 days. Historical rating snapshots are not stored, so 30-day delta cannot be computed.',
+        note: 'Ranked by current Codeforces rating among users synced in the last 30 days.',
       },
     });
   } catch (err) {
@@ -161,7 +153,7 @@ export async function totalSolvedLeaderboard(req, res, next) {
         },
       },
       { $unwind: '$user' },
-      { $match: { 'user.role': 'student', 'user.isActive': true } },
+      { $match: { 'user.isActive': true } },
     ]);
 
     const ranked = agg.map((entry, i) => ({
