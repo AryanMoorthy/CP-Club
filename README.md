@@ -218,11 +218,10 @@ College competitive programming (CP) clubs and student cohorts face persistent h
 
 ## 11. Demo Credentials
 
-The database seed provides predefined accounts across all three platform roles:
+The database provides predefined testing accounts:
 
 | Role | Email | Password | Codeforces Handle |
 |---|---|---|---|
-| **Admin** | `admin@cpclub.org` | `AdminPassword123!` | `@tourist` |
 | **Mentor** | `mentor@cpclub.org` | `MentorPassword123!` | `@Petr` |
 | **Student** | `student@cpclub.org` | `StudentPassword123!` | `@Benq` |
 
@@ -233,8 +232,8 @@ The database seed provides predefined accounts across all three platform roles:
 ## 12. Deployment Links & Access
 
 - **GitHub Repository**: [https://github.com/AryanMoorthy/CP-Club](https://github.com/AryanMoorthy/CP-Club)
-- **Live Deployed Application**: *(Provide your production URL, e.g. Vercel/Render URL)*
-- **API Status / Health Check**: *(e.g., `https://<backend-url>/api/health`)*
+- **Live Deployed Application**: [https://cp-club-ochre.vercel.app](https://cp-club-ochre.vercel.app)
+- **API Status / Health Check**: [https://cp-club-backend-wqpz.onrender.com/api/health](https://cp-club-backend-wqpz.onrender.com/api/health)
 
 ---
 
