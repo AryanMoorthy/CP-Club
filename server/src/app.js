@@ -18,15 +18,26 @@ const app = express();
 // ── Security ────────────────────────────────────────────────────────────────
 app.use(helmet());
 
-const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map((o) => o.trim());
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: Origin ${origin} not allowed`));
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      
+      // Allow explicitly configured origins (e.g. CLIENT_URL, localhost)
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+
+      // Automatically allow any vercel deployment domain (*.vercel.app)
+      if (/^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
       }
+
+      callback(new Error(`CORS: Origin ${origin} not allowed`));
     },
     credentials: true,
   })
