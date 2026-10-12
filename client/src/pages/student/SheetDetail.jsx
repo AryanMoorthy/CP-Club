@@ -1,30 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import RatingBadge from '../../components/RatingBadge';
+import Skeleton from '../../components/Skeleton';
+import EmptyState from '../../components/EmptyState';
 import {
   FileCode2,
   ExternalLink,
   CheckCircle2,
   Circle,
   RefreshCw,
-  Layers,
   ArrowLeft,
-  Share2,
-  Award,
   Edit,
+  Search,
+  Check,
+  Filter,
 } from 'lucide-react';
 
 export default function SheetDetail() {
   const { id } = useParams();
   const { user, isMentor, syncCodeforces, isSyncingCF } = useAuth();
+  const toast = useToast();
+
   const [sheet, setSheet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [solvedKeys, setSolvedKeys] = useState(new Set());
   const [syncingProblem, setSyncingProblem] = useState(null);
+
+  // Filters
+  const [problemSearch, setProblemSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // all | solved | unsolved
 
   const fetchSheetData = async () => {
     try {
@@ -58,18 +66,19 @@ export default function SheetDetail() {
 
   const handleVerifySubmission = async (problem) => {
     if (!user?.codeforcesHandle) {
-      alert('Please link your Codeforces handle in your profile first!');
+      toast.warning('Link your Codeforces handle in your profile first');
       return;
     }
 
-    const key = `${problem.contestId}${problem.index}`.toUpperCase();
-    setSyncingProblem(key);
+    const key = problem.contestId && problem.index
+      ? `${problem.contestId}${problem.index}`.toUpperCase()
+      : null;
+
+    if (key) setSyncingProblem(key);
 
     try {
-      // Sync with Codeforces API (if not rate limited)
       await syncCodeforces();
 
-      // Refresh local solved list
       const solvedRes = await api.get('/users/solved-problems');
       if (solvedRes.success && solvedRes.data) {
         const updatedKeys = new Set(
@@ -77,33 +86,39 @@ export default function SheetDetail() {
         );
         setSolvedKeys(updatedKeys);
 
-        if (problem.contestId && problem.index) {
+        if (key) {
           if (updatedKeys.has(key)) {
-            alert(`Great job! Problem ${key} is verified as ACCEPTED on Codeforces! 🎉`);
+            toast.success(`Verified: Problem ${key} is marked Accepted!`);
           } else {
-            alert(`No accepted submission found yet on Codeforces for ${key}. Solve it first and try again!`);
+            toast.info(`No accepted submission found yet on CF for ${key}.`);
           }
         } else {
-          alert('Submissions synced successfully!');
+          toast.success('Synced all Codeforces submissions');
         }
       }
     } catch (err) {
-      alert(`Error verifying: ${err.message}`);
+      toast.error(err.message || 'Verification failed');
     } finally {
       setSyncingProblem(null);
     }
   };
 
   if (loading) {
-    return <LoadingSpinner text="Loading sheet problems..." />;
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Skeleton.Card />
+        <Skeleton.Table rows={6} />
+      </div>
+    );
   }
 
   if (error || !sheet) {
     return (
-      <div className="text-center py-12">
-        <p className="text-rose-400 mb-4">{error || 'Sheet not found'}</p>
-        <Link to="/sheets" className="btn-secondary text-xs">
-          ← Back to Sheets
+      <div className="text-center py-12 glass-card">
+        <p className="text-rose-400 mb-3 text-sm">{error || 'Problem sheet not found'}</p>
+        <Link to="/sheets" className="btn-secondary text-xs inline-flex items-center gap-1.5">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to Problem Sheets
         </Link>
       </div>
     );
@@ -115,22 +130,41 @@ export default function SheetDetail() {
   ).length;
   const progressPercent = problems.length > 0 ? Math.round((solvedCount / problems.length) * 100) : 0;
 
+  // Filtered problems
+  const filteredProblems = problems.filter((prob) => {
+    const key = `${prob.contestId}${prob.index}`.toUpperCase();
+    const isSolved = solvedKeys.has(key);
+
+    if (statusFilter === 'solved' && !isSolved) return false;
+    if (statusFilter === 'unsolved' && isSolved) return false;
+
+    if (problemSearch) {
+      const q = problemSearch.toLowerCase();
+      const matchName = prob.name?.toLowerCase().includes(q);
+      const matchId = `${prob.contestId}${prob.index}`.toLowerCase().includes(q);
+      const matchTags = (prob.tags || []).some((t) => t.toLowerCase().includes(q));
+      if (!matchName && !matchId && !matchTags) return false;
+    }
+
+    return true;
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Back button and breadcrumb */}
+      {/* Top action row */}
       <div className="flex items-center justify-between">
         <Link
           to="/sheets"
-          className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to All Sheets</span>
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>All Sheets</span>
         </Link>
 
         {isMentor && (
           <Link
             to={`/mentor/sheets/edit/${sheet._id}`}
-            className="btn-secondary text-xs flex items-center gap-1.5"
+            className="btn-secondary py-1 px-2.5 text-xs flex items-center gap-1.5"
           >
             <Edit className="w-3.5 h-3.5" />
             <span>Edit Sheet</span>
@@ -138,166 +172,188 @@ export default function SheetDetail() {
         )}
       </div>
 
-      {/* Sheet Banner Card */}
-      <div className="glass-card p-6 sm:p-8 rounded-2xl border border-slate-800 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header Banner */}
+      <div className="glass-card p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                {sheet.difficulty}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="badge badge-indigo capitalize text-[11px]">
+                {sheet.difficulty || 'All Levels'}
               </span>
-              <span className="text-xs text-slate-400 font-mono">
-                Curated by {sheet.createdBy?.name || 'Mentor'}
+              <span className="text-[11px] text-slate-500 font-mono">
+                Curated by {sheet.createdBy?.name || 'Club Mentor'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {sheet.title}
-            </h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-3xl leading-relaxed">
-              {sheet.description}
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-100">{sheet.title}</h1>
+            <p className="text-xs text-slate-400 mt-1.5 max-w-2xl leading-relaxed">
+              {sheet.description || 'Targeted problem set to sharpen competitive programming skills.'}
             </p>
           </div>
 
-          {/* Quick sync button for all problems */}
           <button
             onClick={() => handleVerifySubmission({ contestId: '', index: '' })}
             disabled={isSyncingCF}
-            className="btn-primary self-start md:self-center flex items-center gap-2 text-xs"
+            className="btn-primary self-start md:self-center text-xs shrink-0"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCF ? 'animate-spin' : ''}`} />
-            <span>Sync All CF Submissions</span>
+            <span>Sync All Solves</span>
           </button>
         </div>
 
         {/* Progress Bar */}
-        <div className="pt-4 border-t border-slate-800/80">
-          <div className="flex items-center justify-between text-xs font-semibold mb-2">
-            <span className="text-slate-300">
-              Your Progress: <span className="text-white font-mono">{solvedCount} / {problems.length} Solved</span>
+        <div className="pt-3 border-t border-[#1e293b]">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="text-slate-400">
+              Your Progress:{' '}
+              <strong className="text-slate-200 font-mono">
+                {solvedCount} / {problems.length} Solved
+              </strong>
             </span>
-            <span className="text-brand-accent font-mono">{progressPercent}% Completed</span>
+            <span className="font-mono font-medium text-indigo-400">{progressPercent}%</span>
           </div>
-          <div className="w-full h-2.5 bg-dark-900 rounded-full overflow-hidden border border-slate-800">
+          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-brand-primary to-emerald-400 transition-all duration-500 rounded-full"
+              className="h-full bg-indigo-500 transition-all duration-300 rounded-full"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
         </div>
       </div>
 
+      {/* Filter and Search Bar for Problems */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="tab-bar">
+          {[
+            { id: 'all', label: `All (${problems.length})` },
+            { id: 'unsolved', label: `Unsolved (${problems.length - solvedCount})` },
+            { id: 'solved', label: `Solved (${solvedCount})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`tab-item ${statusFilter === tab.id ? 'active' : ''}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="search-box sm:w-72">
+          <Search className="w-4 h-4" />
+          <input
+            type="text"
+            value={problemSearch}
+            onChange={(e) => setProblemSearch(e.target.value)}
+            placeholder="Search problems or tags..."
+          />
+        </div>
+      </div>
+
       {/* Problems Table */}
-      <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-dark-900/80 border-b border-slate-800 text-xs uppercase font-semibold text-slate-400 tracking-wider">
+      <div className="glass-card overflow-hidden w-full border border-[#1e293b]">
+        <div className="overflow-x-auto w-full">
+          <table className="table-base w-full">
+            <thead>
               <tr>
-                <th className="py-3.5 px-4 w-12 text-center">Status</th>
-                <th className="py-3.5 px-4"># Problem</th>
-                <th className="py-3.5 px-4">Codeforces ID</th>
-                <th className="py-3.5 px-4">Rating</th>
-                <th className="py-3.5 px-4">Tags</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
+                <th className="w-16 text-center">Status</th>
+                <th className="min-w-[240px]">Problem</th>
+                <th className="min-w-[120px]">CF ID</th>
+                <th className="min-w-[120px]">Rating</th>
+                <th className="min-w-[200px]">Tags</th>
+                <th className="min-w-[140px] text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {problems.map((prob, idx) => {
-                const probKey = `${prob.contestId}${prob.index}`.toUpperCase();
-                const isSolved = solvedKeys.has(probKey);
-                const isCheckingThis = syncingProblem === probKey;
-                const cfLink = `https://codeforces.com/problemset/problem/${prob.contestId}/${prob.index}`;
+            <tbody>
+              {filteredProblems.length > 0 ? (
+                filteredProblems.map((prob, idx) => {
+                  const probKey = `${prob.contestId}${prob.index}`.toUpperCase();
+                  const isSolved = solvedKeys.has(probKey);
+                  const isChecking = syncingProblem === probKey;
+                  const cfLink = `https://codeforces.com/problemset/problem/${prob.contestId}/${prob.index}`;
 
-                return (
-                  <tr
-                    key={probKey + idx}
-                    className="hover:bg-slate-800/40 transition group"
-                  >
-                    {/* Status Column */}
-                    <td className="py-3.5 px-4 text-center">
-                      {isSolved ? (
-                        <CheckCircle2
-                          className="w-5 h-5 text-emerald-400 mx-auto"
-                          title="Verified Solved"
-                        />
-                      ) : (
-                        <Circle
-                          className="w-5 h-5 text-slate-600 mx-auto"
-                          title="Unsolved"
-                        />
-                      )}
-                    </td>
+                  return (
+                    <tr key={probKey + idx}>
+                      <td className="text-center">
+                        {isSolved ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 mx-auto" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-slate-600 mx-auto" />
+                        )}
+                      </td>
 
-                    {/* Title */}
-                    <td className="py-3.5 px-4">
-                      <a
-                        href={cfLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-semibold text-slate-200 group-hover:text-white hover:underline flex items-center gap-1.5"
-                      >
-                        <span>{prob.name || `Problem ${prob.index}`}</span>
-                        <ExternalLink className="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 transition" />
-                      </a>
-                    </td>
+                      <td>
+                        <a
+                          href={cfLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium text-slate-200 hover:text-indigo-400 inline-flex items-center gap-1.5 transition"
+                        >
+                          <span>{prob.name || `Problem ${prob.index}`}</span>
+                          <ExternalLink className="w-3 h-3 text-slate-500 opacity-60" />
+                        </a>
+                      </td>
 
-                    {/* Codeforces ID */}
-                    <td className="py-3.5 px-4 font-mono text-xs text-brand-accent">
-                      {prob.contestId} - {prob.index}
-                    </td>
+                      <td className="font-mono text-xs text-indigo-400">
+                        {prob.contestId}{prob.index}
+                      </td>
 
-                    {/* Rating */}
-                    <td className="py-3.5 px-4">
-                      {prob.rating ? (
-                        <RatingBadge rating={prob.rating} size="xs" showRank={false} />
-                      ) : (
-                        <span className="text-xs text-slate-500 font-mono">—</span>
-                      )}
-                    </td>
+                      <td>
+                        {prob.rating ? (
+                          <RatingBadge rating={prob.rating} size="xs" showRank={false} />
+                        ) : (
+                          <span className="text-xs text-slate-600 font-mono">—</span>
+                        )}
+                      </td>
 
-                    {/* Tags */}
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
-                        {(prob.tags || []).slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-[10px] font-mono bg-dark-900 border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
+                      <td>
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {(prob.tags || []).slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-[10px] font-mono bg-slate-800/60 border border-slate-700/50 text-slate-400 px-1.5 py-0.5 rounded"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
 
-                    {/* Actions */}
-                    <td className="py-3.5 px-4 text-right space-x-2">
-                      <a
-                        href={cfLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1"
-                      >
-                        Solve
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <td className="text-right space-x-1.5">
+                        <a
+                          href={cfLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1"
+                        >
+                          CF
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
 
-                      <button
-                        onClick={() => handleVerifySubmission(prob)}
-                        disabled={isCheckingThis || isSyncingCF}
-                        className={`py-1 px-2.5 text-xs rounded-lg font-medium transition inline-flex items-center gap-1 ${
-                          isSolved
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/20'
-                        }`}
-                      >
-                        <RefreshCw
-                          className={`w-3 h-3 ${isCheckingThis ? 'animate-spin' : ''}`}
-                        />
-                        {isSolved ? 'Verified' : 'Verify CF'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                        <button
+                          onClick={() => handleVerifySubmission(prob)}
+                          disabled={isChecking || isSyncingCF}
+                          className={`py-1 px-2 text-xs rounded font-medium transition inline-flex items-center gap-1 border ${
+                            isSolved
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                          }`}
+                        >
+                          <RefreshCw
+                            className={`w-3 h-3 ${isChecking ? 'animate-spin' : ''}`}
+                          />
+                          {isSolved ? 'Solved' : 'Verify'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-xs text-slate-500">
+                    No problems match your filter criteria.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

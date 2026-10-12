@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
 import CountdownTimer from '../../components/CountdownTimer';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton from '../../components/Skeleton';
 import EmptyState from '../../components/EmptyState';
+import PageHeader from '../../components/PageHeader';
 import {
   Swords,
   Users,
@@ -12,13 +14,17 @@ import {
   ArrowRight,
   Plus,
   Play,
-  CheckCircle,
+  CheckCircle2,
+  Calendar,
 } from 'lucide-react';
 
 export default function PracticeRooms() {
   const { isMentor, user } = useAuth();
+  const toast = useToast();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [joiningId, setJoiningId] = useState(null);
+  const [filter, setFilter] = useState('all'); // all | live | upcoming | ended
 
   const fetchRooms = async () => {
     try {
@@ -41,45 +47,74 @@ export default function PracticeRooms() {
 
   const handleJoin = async (roomId) => {
     try {
+      setJoiningId(roomId);
       const res = await api.post(`/practice-rooms/${roomId}/join`);
       if (res.success) {
+        toast.success('Successfully registered for room!');
         fetchRooms();
       }
     } catch (err) {
-      alert(`Could not join: ${err.message}`);
+      toast.error(err.message || 'Could not join room');
+    } finally {
+      setJoiningId(null);
     }
   };
 
+  const now = new Date();
+
+  const filtered = rooms.filter((room) => {
+    const start = new Date(room.startTime);
+    const end = new Date(room.endTime);
+    const isLive = now >= start && now <= end;
+    const isUpcoming = now < start;
+    const isEnded = now > end || room.isFinished;
+
+    if (filter === 'live') return isLive;
+    if (filter === 'upcoming') return isUpcoming;
+    if (filter === 'ended') return isEnded;
+    return true;
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            <Swords className="w-8 h-8 text-indigo-400" />
-            Practice Rooms
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Timed virtual contests with real-time peer scoreboards and curated problem sets.
-          </p>
-        </div>
+      <PageHeader
+        title="Practice Rooms"
+        subtitle="Virtual contest arenas with peer scoreboards and curated problem sets."
+        icon={Swords}
+        iconColor="text-indigo-400"
+        actions={
+          isMentor && (
+            <Link to="/mentor/rooms/new" className="btn-primary text-xs">
+              <Plus className="w-3.5 h-3.5" />
+              Create Arena
+            </Link>
+          )
+        }
+      />
 
-        {isMentor && (
-          <Link
-            to="/mentor/rooms/new"
-            className="btn-primary flex items-center gap-2 text-xs font-semibold self-start sm:self-auto"
+      {/* Tabs */}
+      <div className="tab-bar self-start">
+        {[
+          { id: 'all', label: 'All Rooms' },
+          { id: 'live', label: 'Live Now' },
+          { id: 'upcoming', label: 'Upcoming' },
+          { id: 'ended', label: 'Finished' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setFilter(t.id)}
+            className={`tab-item ${filter === t.id ? 'active' : ''}`}
           >
-            <Plus className="w-4 h-4" />
-            <span>Create Room</span>
-          </Link>
-        )}
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
-        <LoadingSpinner text="Fetching active rooms..." />
-      ) : rooms.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {rooms.map((room) => {
-            const now = new Date();
+        <Skeleton.Grid cards={3} />
+      ) : filtered.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((room) => {
             const start = new Date(room.startTime);
             const end = new Date(room.endTime);
             const isLive = now >= start && now <= end;
@@ -93,74 +128,71 @@ export default function PracticeRooms() {
             return (
               <div
                 key={room._id}
-                className={`glass-card rounded-2xl border p-5 flex flex-col justify-between transition shadow-lg ${
-                  isLive
-                    ? 'border-indigo-500/50 shadow-glow-primary'
-                    : 'border-slate-800 hover:border-slate-700'
+                className={`glass-card p-5 flex flex-col justify-between transition hover:border-slate-700 ${
+                  isLive ? 'border-rose-500/30 bg-rose-500/5' : ''
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
                     {isLive && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 animate-pulse">
+                      <span className="badge badge-rose flex items-center gap-1.5 animate-pulse">
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                        LIVE CONTEST
+                        Live Now
                       </span>
                     )}
-                    {isUpcoming && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                        Upcoming
-                      </span>
-                    )}
-                    {isEnded && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400">
-                        Finished
-                      </span>
-                    )}
+                    {isUpcoming && <span className="badge badge-cyan">Upcoming</span>}
+                    {isEnded && <span className="badge badge-slate">Finished</span>}
 
-                    <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5" />
-                      {room.participants?.length || 0}
+                    <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-slate-600" />
+                      {room.participants?.length || 0} joined
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-white line-clamp-1">{room.title}</h3>
-                  <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                    {room.description || 'Virtual practice arena.'}
+                  <h3 className="text-sm font-semibold text-slate-100 line-clamp-1">{room.title}</h3>
+                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
+                    {room.description || 'Virtual contest practice arena.'}
                   </p>
 
-                  <div className="mt-4 p-3 rounded-xl bg-dark-900 border border-slate-800 space-y-2">
+                  <div className="mt-4 p-3 rounded-lg bg-slate-900/60 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400">Problems:</span>
-                      <span className="font-mono text-white font-semibold">
-                        {room.problems?.length || 0}
+                      <span className="text-slate-500">Problem Set:</span>
+                      <span className="font-mono text-slate-200 font-medium">
+                        {room.problems?.length || 0} problems
                       </span>
                     </div>
+
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400">Status:</span>
-                      {isLive && <CountdownTimer targetDate={room.endTime} label="Ends in" />}
-                      {isUpcoming && <CountdownTimer targetDate={room.startTime} label="Starts in" />}
-                      {isEnded && <span className="font-mono text-slate-400">Ended</span>}
+                      <span className="text-slate-500">Timer:</span>
+                      {isLive && <CountdownTimer targetDate={room.endTime} label="Ends" />}
+                      {isUpcoming && <CountdownTimer targetDate={room.startTime} label="Starts" />}
+                      {isEnded && <span className="font-mono text-slate-500">Ended</span>}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between">
-                  {!isEnded && !isParticipant && (
+                <div className="mt-5 pt-3.5 border-t border-[#1e293b] flex items-center justify-between gap-2">
+                  {!isEnded && !isParticipant ? (
                     <button
                       onClick={() => handleJoin(room._id)}
-                      className="btn-secondary text-xs"
+                      disabled={joiningId === room._id}
+                      className="btn-secondary py-1 px-2.5 text-xs"
                     >
-                      Join Room
+                      {joiningId === room._id ? 'Joining...' : 'Register'}
                     </button>
+                  ) : (
+                    <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {isEnded ? 'Completed' : 'Registered'}
+                    </span>
                   )}
 
                   <Link
                     to={`/practice-rooms/${room._id}`}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:text-brand-accent transition ml-auto"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition ml-auto"
                   >
-                    <span>{isLive ? 'Enter Arena' : 'View Room'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <span>{isLive ? 'Enter Contest' : 'Details'}</span>
+                    <ArrowRight className="w-3 h-3" />
                   </Link>
                 </div>
               </div>
@@ -169,8 +201,8 @@ export default function PracticeRooms() {
         </div>
       ) : (
         <EmptyState
-          title="No practice rooms"
-          description="Mentors can schedule competitive rooms with problem sets."
+          title={filter === 'all' ? 'No practice rooms' : `No ${filter} rooms`}
+          description="Contests and virtual practice rooms will appear here when scheduled by mentors."
           icon={Swords}
         />
       )}

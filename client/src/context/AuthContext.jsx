@@ -14,12 +14,17 @@ export function AuthProvider({ children }) {
     try {
       setLoading(true);
       const res = await api.get('/auth/me');
-      if (res.success && res.data) {
-        setUser(res.data);
+      const currentUser = res.data?.user || res.data;
+      if (res.success && currentUser) {
+        setUser(currentUser);
       } else {
+        localStorage.removeItem('cp_token');
+        localStorage.removeItem('cp_refresh_token');
         setUser(null);
       }
     } catch (err) {
+      localStorage.removeItem('cp_token');
+      localStorage.removeItem('cp_refresh_token');
       setUser(null);
     } finally {
       setLoading(false);
@@ -34,9 +39,16 @@ export function AuthProvider({ children }) {
     setError(null);
     try {
       const res = await api.post('/auth/login', { email, password });
-      if (res.success && res.data?.user) {
-        setUser(res.data.user);
-        return { success: true, user: res.data.user };
+      const loggedUser = res.data?.user || res.data;
+      if (res.success && loggedUser) {
+        if (res.data?.accessToken) {
+          localStorage.setItem('cp_token', res.data.accessToken);
+        }
+        if (res.data?.refreshToken) {
+          localStorage.setItem('cp_refresh_token', res.data.refreshToken);
+        }
+        setUser(loggedUser);
+        return { success: true, user: loggedUser };
       }
       throw new Error(res.message || 'Login failed');
     } catch (err) {
@@ -53,9 +65,16 @@ export function AuthProvider({ children }) {
         payload.codeforcesHandle = codeforcesHandle.trim();
       }
       const res = await api.post('/auth/register', payload);
-      if (res.success && res.data?.user) {
-        setUser(res.data.user);
-        return { success: true, user: res.data.user };
+      const regUser = res.data?.user || res.data;
+      if (res.success && regUser) {
+        if (res.data?.accessToken) {
+          localStorage.setItem('cp_token', res.data.accessToken);
+        }
+        if (res.data?.refreshToken) {
+          localStorage.setItem('cp_refresh_token', res.data.refreshToken);
+        }
+        setUser(regUser);
+        return { success: true, user: regUser };
       }
       throw new Error(res.message || 'Registration failed');
     } catch (err) {
@@ -70,6 +89,8 @@ export function AuthProvider({ children }) {
     } catch (err) {
       // Ignore logout errors
     } finally {
+      localStorage.removeItem('cp_token');
+      localStorage.removeItem('cp_refresh_token');
       setUser(null);
     }
   };

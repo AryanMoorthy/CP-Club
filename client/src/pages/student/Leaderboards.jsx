@@ -1,50 +1,59 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import RatingBadge from '../../components/RatingBadge';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton from '../../components/Skeleton';
 import EmptyState from '../../components/EmptyState';
+import PageHeader from '../../components/PageHeader';
 import {
   Trophy,
   Flame,
   TrendingUp,
   Award,
   Crown,
-  Medal,
   ExternalLink,
   Search,
+  User,
+  Medal,
+  Users,
 } from 'lucide-react';
 
+const TABS = [
+  { id: 'rating',      label: 'Rating',        icon: Trophy,     endpoint: '/leaderboard/rating' },
+  { id: 'weekly',      label: 'Weekly Solved', icon: Flame,      endpoint: '/leaderboard/weekly' },
+  { id: 'improvement', label: 'Improvement',   icon: TrendingUp, endpoint: '/leaderboard/improvement' },
+  { id: 'total',       label: 'Total Solved',  icon: Award,      endpoint: '/leaderboard/total' },
+];
+
 export default function Leaderboards() {
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('rating');
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  const tabs = [
-    { id: 'rating', label: 'CF Rating', icon: Trophy, endpoint: '/leaderboard/rating' },
-    { id: 'weekly', label: 'Weekly Solved', icon: Flame, endpoint: '/leaderboard/weekly' },
-    { id: 'improvement', label: 'Improvement', icon: TrendingUp, endpoint: '/leaderboard/improvement' },
-    { id: 'total', label: 'Total Solved', icon: Award, endpoint: '/leaderboard/total' },
-  ];
-
   const fetchLeaderboard = async () => {
-    const currentTab = tabs.find((t) => t.id === activeTab);
-    if (!currentTab) return;
+    const tabConfig = TABS.find((t) => t.id === activeTab);
+    if (!tabConfig) return;
 
     try {
       setLoading(true);
-      const res = await api.get(currentTab.endpoint);
+      const res = await api.get(tabConfig.endpoint);
       if (res.success && res.data) {
         const list = Array.isArray(res.data) ? res.data : (res.data.leaderboard || []);
-        // Map ranked items to flat user structure expected by component
         const formatted = list.map((item) => ({
           ...item.user,
           ...item,
           codeforcesHandle: item.user?.codeforcesHandle || item.codeforcesHandle,
           name: item.user?.name || item.name,
-          weeklySolved: item.weeklyCount,
-          totalSolved: item.totalCount,
-          codeforcesProfile: { rating: item.rating || item.currentRating || 0 },
+          weeklySolved: item.weeklyCount ?? item.weeklySolved ?? 0,
+          totalSolved: item.totalCount ?? item.totalSolved ?? item.codeforcesProfile?.totalSolvedCount ?? 0,
+          ratingImprovement: item.ratingImprovement ?? item.improvement ?? 0,
+          codeforcesProfile: {
+            rating: item.rating || item.currentRating || item.user?.codeforcesProfile?.rating || item.codeforcesProfile?.rating || 0,
+            maxRating: item.maxRating || item.user?.codeforcesProfile?.maxRating || item.codeforcesProfile?.maxRating || 0,
+            rank: item.rank || item.user?.codeforcesProfile?.rank || item.codeforcesProfile?.rank || 'unrated',
+          },
         }));
         setLeaderboard(formatted);
       } else {
@@ -62,43 +71,52 @@ export default function Leaderboards() {
     fetchLeaderboard();
   }, [activeTab]);
 
-  const filteredList = leaderboard.filter(
-    (item) =>
-      item.name?.toLowerCase().includes(search.toLowerCase()) ||
-      item.codeforcesHandle?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = leaderboard.filter((item) => {
+    const q = search.toLowerCase();
+    return (
+      (item.name && item.name.toLowerCase().includes(q)) ||
+      (item.codeforcesHandle && item.codeforcesHandle.toLowerCase().includes(q))
+    );
+  });
 
-  const topThree = filteredList.slice(0, 3);
-  const restOfList = filteredList.slice(3);
+  const topThree = filtered.slice(0, 3);
+
+  const getMetricValue = (item) => {
+    if (activeTab === 'rating') return `${item.codeforcesProfile?.rating || 0}`;
+    if (activeTab === 'weekly') return `${item.weeklySolved || 0} solved`;
+    if (activeTab === 'improvement') return `+${item.ratingImprovement || 0} pts`;
+    if (activeTab === 'total') return `${item.totalSolved || 0} solved`;
+    return '—';
+  };
+
+  const getMetricHeading = () => {
+    if (activeTab === 'rating') return 'Rating';
+    if (activeTab === 'weekly') return 'Weekly Solves';
+    if (activeTab === 'improvement') return 'Rating Delta';
+    if (activeTab === 'total') return 'Total Solves';
+    return 'Score';
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Title & Tabs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            <Trophy className="w-8 h-8 text-amber-400" />
-            Competitive Leaderboards
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Real-time rankings powered by Codeforces API data and club activity.
-          </p>
-        </div>
+    <div className="space-y-6 animate-fade-in w-full">
+      <PageHeader
+        title="Leaderboard"
+        subtitle="Rankings updated daily via Codeforces API verification and platform activity."
+        icon={Trophy}
+        iconColor="text-amber-400"
+      />
 
-        {/* Tab switchers */}
-        <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-dark-900 border border-slate-800 self-start md:self-auto">
-          {tabs.map((tab) => {
+      {/* Control bar: Tabs & Search */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 w-full">
+        <div className="tab-bar">
+          {TABS.map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  isActive
-                    ? 'bg-brand-primary text-white shadow-glow-primary'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                }`}
+                className={`tab-item flex items-center gap-1.5 ${active ? 'active' : ''}`}
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{tab.label}</span>
@@ -106,167 +124,204 @@ export default function Leaderboards() {
             );
           })}
         </div>
-      </div>
 
-      {/* Search Input */}
-      <div className="relative max-w-sm">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or CF handle..."
-          className="w-full glass-input rounded-xl py-2 pl-10 pr-4 text-sm"
-        />
+        {/* Search input with sleek search-box style */}
+        <div className="search-box md:max-w-xs">
+          <Search className="w-4 h-4" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search handle or name..."
+          />
+        </div>
       </div>
 
       {loading ? (
-        <LoadingSpinner text="Compiling leaderboard ranks..." />
-      ) : filteredList.length > 0 ? (
-        <div className="space-y-6">
-          {/* Top 3 Podium Cards */}
-          {topThree.length >= 1 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
-              {/* Silver (Rank 2) */}
+        <Skeleton.Table rows={8} />
+      ) : filtered.length > 0 ? (
+        <div className="space-y-6 w-full">
+          {/* Top 3 Podium (when no search query or at least 1 match) */}
+          {!search && topThree.length >= 1 && (
+            <div className="flex flex-wrap justify-center gap-4 pt-4 w-full">
+              {/* Rank 2 (Silver) */}
               {topThree[1] && (
-                <div className="glass-card rounded-2xl border border-slate-700 p-5 flex flex-col items-center text-center relative order-2 sm:order-1">
-                  <div className="w-8 h-8 rounded-full bg-slate-400/20 text-slate-300 flex items-center justify-center font-bold text-xs mb-3 border border-slate-400/40">
-                    #2
+                <div className="glass-card p-5 flex flex-col items-center text-center order-2 md:order-1 border-slate-700/70 relative w-full md:w-[calc(33.333%-1rem)] md:max-w-xs">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className="badge text-[10px] font-mono bg-slate-400/10 text-slate-300 border-slate-400/30">
+                      🥈 #2 Silver
+                    </span>
                   </div>
-                  <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-400 flex items-center justify-center font-bold text-lg text-slate-300 mb-3 shadow-lg">
+                  <div className="w-14 h-14 rounded-full bg-slate-800 border-2 border-slate-400 flex items-center justify-center font-bold text-slate-200 text-lg mb-2 shadow-md">
                     {topThree[1].name?.charAt(0).toUpperCase()}
                   </div>
-                  <h4 className="text-base font-bold text-white line-clamp-1">{topThree[1].name}</h4>
+                  <h4 className="text-sm font-bold text-slate-100 line-clamp-1">{topThree[1].name}</h4>
                   <a
                     href={`https://codeforces.com/profile/${topThree[1].codeforcesHandle}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-mono text-brand-accent hover:underline mt-1"
+                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 mt-0.5 inline-flex items-center gap-1"
                   >
                     @{topThree[1].codeforcesHandle}
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                   </a>
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <RatingBadge rating={topThree[1].codeforcesProfile?.rating || 0} size="sm" />
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#1e293b] w-full flex items-center justify-between text-xs font-mono">
+                    <span className="text-slate-500">{getMetricHeading()}</span>
+                    <span className="font-bold text-slate-200">{getMetricValue(topThree[1])}</span>
                   </div>
                 </div>
               )}
 
-              {/* Gold (Rank 1) */}
+              {/* Rank 1 (Gold) */}
               {topThree[0] && (
-                <div className="glass-card rounded-2xl border border-amber-500/40 p-6 flex flex-col items-center text-center relative order-1 sm:order-2 bg-gradient-to-b from-amber-500/10 to-transparent shadow-glow-primary">
-                  <Crown className="w-7 h-7 text-amber-400 absolute -top-3.5" />
-                  <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs mb-3 border border-amber-500/40">
-                    #1
+                <div className="glass-card pt-8 pb-6 px-6 flex flex-col items-center text-center order-1 md:order-2 border-amber-500/40 bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-transparent relative shadow-lg overflow-visible w-full md:w-[calc(33.333%-1rem)] md:max-w-xs">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[#0f172a] border border-amber-500/40 flex items-center justify-center shadow-lg">
+                    <Crown className="w-4 h-4 text-amber-400" />
                   </div>
-                  <div className="w-20 h-20 rounded-full bg-dark-900 border-2 border-amber-400 flex items-center justify-center font-bold text-2xl text-amber-300 mb-3 shadow-2xl">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className="badge badge-amber text-[10px] font-mono">
+                      👑 #1 Champion
+                    </span>
+                  </div>
+                  <div className="w-16 h-16 rounded-full bg-slate-900 border-2 border-amber-400 flex items-center justify-center font-bold text-2xl text-amber-300 mb-2 shadow-xl">
                     {topThree[0].name?.charAt(0).toUpperCase()}
                   </div>
-                  <h4 className="text-lg font-extrabold text-white line-clamp-1">{topThree[0].name}</h4>
+                  <h4 className="text-base font-bold text-slate-100 line-clamp-1">{topThree[0].name}</h4>
                   <a
                     href={`https://codeforces.com/profile/${topThree[0].codeforcesHandle}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-mono text-amber-400 hover:underline mt-1"
+                    className="text-xs font-mono text-amber-400 hover:text-amber-300 mt-0.5 inline-flex items-center gap-1"
                   >
                     @{topThree[0].codeforcesHandle}
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                   </a>
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <RatingBadge rating={topThree[0].codeforcesProfile?.rating || 0} size="md" />
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-amber-500/20 w-full flex items-center justify-between text-xs font-mono">
+                    <span className="text-amber-400/80">{getMetricHeading()}</span>
+                    <span className="font-black text-amber-300">{getMetricValue(topThree[0])}</span>
                   </div>
                 </div>
               )}
 
-              {/* Bronze (Rank 3) */}
+              {/* Rank 3 (Bronze) */}
               {topThree[2] && (
-                <div className="glass-card rounded-2xl border border-amber-800/40 p-5 flex flex-col items-center text-center relative order-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-800/20 text-amber-600 flex items-center justify-center font-bold text-xs mb-3 border border-amber-800/40">
-                    #3
+                <div className="glass-card p-5 flex flex-col items-center text-center order-3 border-amber-900/40 relative w-full md:w-[calc(33.333%-1rem)] md:max-w-xs">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className="badge text-[10px] font-mono bg-amber-950/40 text-amber-500 border border-amber-900/40">
+                      🥉 #3 Bronze
+                    </span>
                   </div>
-                  <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-amber-700 flex items-center justify-center font-bold text-lg text-amber-600 mb-3 shadow-lg">
+                  <div className="w-14 h-14 rounded-full bg-slate-800 border-2 border-amber-700 flex items-center justify-center font-bold text-amber-500 text-lg mb-2 shadow-md">
                     {topThree[2].name?.charAt(0).toUpperCase()}
                   </div>
-                  <h4 className="text-base font-bold text-white line-clamp-1">{topThree[2].name}</h4>
+                  <h4 className="text-sm font-bold text-slate-100 line-clamp-1">{topThree[2].name}</h4>
                   <a
                     href={`https://codeforces.com/profile/${topThree[2].codeforcesHandle}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-mono text-brand-accent hover:underline mt-1"
+                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 mt-0.5 inline-flex items-center gap-1"
                   >
                     @{topThree[2].codeforcesHandle}
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                   </a>
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <RatingBadge rating={topThree[2].codeforcesProfile?.rating || 0} size="sm" />
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#1e293b] w-full flex items-center justify-between text-xs font-mono">
+                    <span className="text-slate-500">{getMetricHeading()}</span>
+                    <span className="font-bold text-slate-200">{getMetricValue(topThree[2])}</span>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Leaderboard Table for Full List */}
-          <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-dark-900/80 border-b border-slate-800 text-xs uppercase font-semibold text-slate-400 tracking-wider">
+          {/* Ranking Table with full container width */}
+          <div className="glass-card overflow-hidden w-full border border-[#1e293b]">
+            <div className="overflow-x-auto w-full">
+              <table className="table-base w-full">
+                <thead>
                   <tr>
-                    <th className="py-3.5 px-4 w-16 text-center">Rank</th>
-                    <th className="py-3.5 px-4">Member</th>
-                    <th className="py-3.5 px-4">Codeforces Handle</th>
-                    <th className="py-3.5 px-4">Rating</th>
-                    <th className="py-3.5 px-4 text-right">Metric Value</th>
+                    <th className="w-16 text-center">Rank</th>
+                    <th className="min-w-[200px]">Member</th>
+                    <th className="min-w-[160px]">Codeforces</th>
+                    <th className="min-w-[130px]">Rating</th>
+                    <th className="min-w-[120px] text-center">Peak</th>
+                    <th className="min-w-[130px] text-right">{getMetricHeading()}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {filteredList.map((user, idx) => (
-                    <tr
-                      key={user._id || idx}
-                      className="hover:bg-slate-800/40 transition group"
-                    >
-                      <td className="py-3.5 px-4 text-center font-mono font-bold">
-                        {idx === 0 && <span className="text-amber-400">#1</span>}
-                        {idx === 1 && <span className="text-slate-300">#2</span>}
-                        {idx === 2 && <span className="text-amber-600">#3</span>}
-                        {idx > 2 && <span className="text-slate-500">#{idx + 1}</span>}
-                      </td>
+                <tbody>
+                  {filtered.map((item, idx) => {
+                    const isMe =
+                      (currentUser?._id && (item._id === currentUser._id || item.user?._id === currentUser._id)) ||
+                      (currentUser?.codeforcesHandle && item.codeforcesHandle?.toLowerCase() === currentUser.codeforcesHandle?.toLowerCase());
 
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-semibold text-xs text-slate-300">
-                            {user.name?.charAt(0).toUpperCase()}
+                    return (
+                      <tr
+                        key={item._id || item.codeforcesHandle || idx}
+                        className={isMe ? 'bg-indigo-500/10 border-l-4 border-indigo-400' : ''}
+                      >
+                        <td className="text-center font-mono font-bold">
+                          {idx === 0 && <span className="text-amber-400">#1</span>}
+                          {idx === 1 && <span className="text-slate-300">#2</span>}
+                          {idx === 2 && <span className="text-amber-600">#3</span>}
+                          {idx > 2 && <span className="text-slate-500">#{idx + 1}</span>}
+                        </td>
+
+                        <td>
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-semibold text-xs text-slate-300 shrink-0">
+                              {item.name?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-200 truncate">
+                                  {item.name || 'Anonymous'}
+                                </span>
+                                {isMe && (
+                                  <span className="badge badge-indigo text-[10px] py-0 px-1.5">You</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <span className="font-semibold text-slate-200 group-hover:text-white">
-                            {user.name}
-                          </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="py-3.5 px-4 font-mono text-xs">
-                        {user.codeforcesHandle ? (
-                          <a
-                            href={`https://codeforces.com/profile/${user.codeforcesHandle}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-brand-accent hover:underline inline-flex items-center gap-1"
-                          >
-                            @{user.codeforcesHandle}
-                            <ExternalLink className="w-3 h-3 opacity-60" />
-                          </a>
-                        ) : (
-                          <span className="text-slate-600">—</span>
-                        )}
-                      </td>
+                        <td className="font-mono text-xs">
+                          {item.codeforcesHandle ? (
+                            <a
+                              href={`https://codeforces.com/profile/${item.codeforcesHandle}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-1"
+                            >
+                              @{item.codeforcesHandle}
+                              <ExternalLink className="w-3 h-3 opacity-60" />
+                            </a>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
+                        </td>
 
-                      <td className="py-3.5 px-4">
-                        <RatingBadge rating={user.codeforcesProfile?.rating || 0} size="xs" />
-                      </td>
+                        <td>
+                          <RatingBadge rating={item.codeforcesProfile?.rating || 0} size="xs" />
+                        </td>
 
-                      <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
-                        {activeTab === 'rating' && (user.codeforcesProfile?.rating || 0)}
-                        {activeTab === 'weekly' && `${user.weeklySolved || 0} solved`}
-                        {activeTab === 'improvement' && `+${user.ratingImprovement || 0} pts`}
-                        {activeTab === 'total' && `${user.codeforcesProfile?.totalSolvedCount || 0} solved`}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="text-center font-mono text-xs text-slate-400">
+                          {item.codeforcesProfile?.maxRating || '—'}
+                        </td>
+
+                        <td className="text-right font-mono font-bold text-slate-100">
+                          {getMetricValue(item)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -275,7 +330,11 @@ export default function Leaderboards() {
       ) : (
         <EmptyState
           title="No ranked members found"
-          description="Members will appear once their Codeforces handles are verified."
+          description={
+            search
+              ? `No members match "${search}". Try clearing your search.`
+              : 'Rankings will appear once members link and verify their Codeforces handles.'
+          }
           icon={Trophy}
         />
       )}

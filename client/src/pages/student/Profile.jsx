@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
 import RatingBadge from '../../components/RatingBadge';
 import RoleBadge from '../../components/RoleBadge';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton from '../../components/Skeleton';
+import PageHeader from '../../components/PageHeader';
 import {
   User,
   Terminal,
@@ -13,13 +15,16 @@ import {
   Flame,
   CheckCircle2,
   Calendar,
-  Lock,
   Edit2,
   Save,
+  X,
+  Tag,
+  Hash,
 } from 'lucide-react';
 
 export default function Profile() {
   const { user, syncCodeforces, isSyncingCF, updateProfile } = useAuth();
+  const toast = useToast();
   const [handle, setHandle] = useState(user?.codeforcesHandle || '');
   const [name, setName] = useState(user?.name || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -39,7 +44,7 @@ export default function Profile() {
       setLoadingSolved(true);
       const res = await api.get('/users/solved-problems');
       if (res.success && res.data) {
-        setRecentSolved(res.data.slice(0, 10));
+        setRecentSolved(res.data.slice(0, 25));
       }
     } catch (err) {
       console.error('Failed to fetch solved problems:', err);
@@ -59,9 +64,9 @@ export default function Profile() {
     setSaving(false);
     if (res.success) {
       setIsEditing(false);
-      alert('Profile updated successfully!');
+      toast.success('Profile details updated successfully!');
     } else {
-      alert(`Update failed: ${res.error}`);
+      toast.error(`Update failed: ${res.error}`);
     }
   };
 
@@ -69,46 +74,62 @@ export default function Profile() {
     const res = await syncCodeforces();
     if (res.success) {
       fetchRecentSolved();
-      alert(`Synced successfully with Codeforces! Total solved: ${res.totalSolved ?? 'updated'}`);
+      toast.success(`Synced with Codeforces: ${res.totalSolved ?? 'records'} verified solves`);
     } else {
-      alert(`Sync error: ${res.error}`);
+      toast.error(`Sync error: ${res.error}`);
     }
   };
 
   const cf = user?.codeforcesProfile || {};
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
+    <div className="space-y-6 animate-fade-in w-full">
+      <PageHeader
+        title="Member Profile"
+        subtitle="Manage your identity, linked Codeforces handle, and verified competitive programming statistics."
+        icon={User}
+        iconColor="text-indigo-400"
+      />
+
       {/* Profile Header Card */}
-      <div className="glass-card p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-brand-primary to-brand-accent flex items-center justify-center text-2xl font-black text-white shadow-glow-primary">
-              {user?.name?.charAt(0).toUpperCase()}
+      <div className="glass-card p-5 sm:p-6 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-xl font-bold text-indigo-300">
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-white tracking-tight">{user?.name}</h1>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-100">{user?.name}</h2>
                 <RoleBadge role={user?.role} />
               </div>
-              <p className="text-xs text-slate-400 font-mono mt-1">{user?.email}</p>
+              <p className="text-xs text-slate-500 font-mono mt-0.5">{user?.email}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isEditing ? (
-              <button
-                onClick={handleSaveProfile}
-                disabled={saving}
-                className="btn-primary text-xs flex items-center gap-1.5"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="btn-secondary py-1.5 px-3 text-xs inline-flex items-center gap-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                  className="btn-primary py-1.5 px-3 text-xs inline-flex items-center gap-1"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{saving ? 'Saving...' : 'Save'}</span>
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => setIsEditing(true)}
-                className="btn-secondary text-xs flex items-center gap-1.5"
+                className="btn-secondary py-1.5 px-3 text-xs inline-flex items-center gap-1.5"
               >
                 <Edit2 className="w-3.5 h-3.5" />
                 <span>Edit Profile</span>
@@ -119,9 +140,9 @@ export default function Profile() {
 
         {/* Profile editing form */}
         {isEditing && (
-          <form onSubmit={handleSaveProfile} className="mt-6 pt-6 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form onSubmit={handleSaveProfile} className="mt-5 pt-5 border-t border-[#1e293b] grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Display Name
               </label>
               <input
@@ -129,19 +150,19 @@ export default function Profile() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full glass-input rounded-xl py-2 px-3 text-sm"
+                className="input-field py-1.5 text-xs w-full"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Codeforces Handle
               </label>
               <input
                 type="text"
                 value={handle}
                 onChange={(e) => setHandle(e.target.value)}
-                placeholder="e.g. tourist"
-                className="w-full glass-input rounded-xl py-2 px-3 text-sm font-mono"
+                placeholder="tourist"
+                className="input-field py-1.5 text-xs w-full font-mono"
               />
             </div>
           </form>
@@ -149,29 +170,29 @@ export default function Profile() {
       </div>
 
       {/* Codeforces Live Stats Card */}
-      <div className="glass-card p-6 sm:p-8 rounded-2xl border border-slate-800 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-card p-5 sm:p-6 space-y-4 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-dark-900 border border-slate-700 flex items-center justify-center text-brand-primary">
-              <Terminal className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-indigo-400">
+              <Terminal className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
                 <span>Codeforces Integration</span>
                 {user?.codeforcesHandle && (
                   <a
                     href={`https://codeforces.com/profile/${user.codeforcesHandle}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-mono text-brand-accent hover:underline flex items-center gap-1"
+                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-1"
                   >
                     @{user.codeforcesHandle}
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
-              </h2>
-              <p className="text-xs text-slate-400">
-                Official API metrics synced with Codeforces server.
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Official API metrics verified from Codeforces servers.
               </p>
             </div>
           </div>
@@ -180,107 +201,146 @@ export default function Profile() {
             <button
               onClick={handleManualSync}
               disabled={isSyncingCF}
-              className="btn-primary flex items-center gap-2 text-xs font-semibold"
+              className="btn-primary py-1.5 text-xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCF ? 'animate-spin' : ''}`} />
-              <span>{isSyncingCF ? 'Syncing...' : 'Sync Now'}</span>
+              <span>{isSyncingCF ? 'Syncing...' : 'Sync Submissions'}</span>
             </button>
           )}
         </div>
 
         {user?.codeforcesHandle ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-dark-900 border border-slate-800">
-              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Rating</p>
-              <div className="mt-2">
-                <RatingBadge rating={cf.rating || 0} size="md" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 w-full">
+            <div className="stat-card">
+              <div>
+                <p className="stat-card-label">Current Rating</p>
+                <div className="mt-2">
+                  <RatingBadge rating={cf.rating || 0} size="sm" />
+                </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-dark-900 border border-slate-800">
-              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Peak Rating</p>
-              <p className="text-xl font-bold font-mono text-amber-400 mt-2">
-                {cf.maxRating || '—'}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">{cf.maxRank || 'Unrated'}</p>
+            <div className="stat-card">
+              <div>
+                <p className="stat-card-label">Peak Rating</p>
+                <p className="stat-card-value text-amber-400 mt-1">
+                  {cf.maxRating || '—'}
+                </p>
+                <p className="stat-card-sub font-mono">{cf.maxRank || 'Unrated'}</p>
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-dark-900 border border-slate-800">
-              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Total Solved</p>
-              <p className="text-xl font-bold font-mono text-emerald-400 mt-2">
-                {cf.totalSolvedCount || 0}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Verified ACs</p>
+            <div className="stat-card">
+              <div>
+                <p className="stat-card-label">Total Solved</p>
+                <p className="stat-card-value text-emerald-400 mt-1">
+                  {cf.totalSolvedCount || 0}
+                </p>
+                <p className="stat-card-sub font-mono">Verified ACs</p>
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-dark-900 border border-slate-800">
-              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Current Rank</p>
-              <p className="text-base font-bold font-mono text-slate-200 mt-2 capitalize">
-                {cf.rank || 'Unrated'}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Division tier</p>
+            <div className="stat-card">
+              <div>
+                <p className="stat-card-label">Current Rank</p>
+                <p className="stat-card-value text-slate-200 mt-1 capitalize text-sm">
+                  {cf.rank || 'Unrated'}
+                </p>
+                <p className="stat-card-sub font-mono">Tier Division</p>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="p-6 rounded-xl bg-dark-900/60 border border-dashed border-slate-800 text-center">
-            <p className="text-sm text-slate-400">
-              No Codeforces handle attached to this account yet.
+          <div className="p-6 rounded-lg bg-slate-900/40 border border-dashed border-slate-800 text-center w-full">
+            <p className="text-xs text-slate-400">
+              No Codeforces handle attached yet. Link your handle to activate tracking and leaderboards.
             </p>
             <button
               onClick={() => setIsEditing(true)}
-              className="btn-primary text-xs mt-3 inline-flex items-center gap-1"
+              className="btn-primary text-xs mt-3"
             >
-              Link Handle Now
+              Link Handle
             </button>
           </div>
         )}
       </div>
 
-      {/* Verified Submissions History Table */}
-      <div className="glass-card p-6 sm:p-8 rounded-2xl border border-slate-800 space-y-4">
-        <h3 className="text-base font-bold text-white flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          Recently Solved & Verified Problems
-        </h3>
+      {/* Verified Submissions History Table with full width styling */}
+      <div className="glass-card overflow-hidden w-full border border-[#1e293b]">
+        <div className="p-4 border-b border-[#1e293b] flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            Recently Solved & Verified Problems
+          </h3>
+          <span className="text-xs font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/60">
+            {recentSolved.length} verified solves
+          </span>
+        </div>
 
         {loadingSolved ? (
-          <LoadingSpinner text="Fetching verified problems..." />
+          <Skeleton.Table rows={6} />
         ) : recentSolved.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-dark-900/80 border-b border-slate-800 text-xs uppercase font-semibold text-slate-400 tracking-wider">
+          <div className="overflow-x-auto w-full">
+            <table className="table-base w-full">
+              <thead>
                 <tr>
-                  <th className="py-3 px-4">Problem</th>
-                  <th className="py-3 px-4">ID</th>
-                  <th className="py-3 px-4">Solved At</th>
-                  <th className="py-3 px-4 text-right">View</th>
+                  <th className="min-w-[280px]">Problem</th>
+                  <th className="min-w-[120px]">Codeforces ID</th>
+                  <th className="min-w-[120px]">Rating</th>
+                  <th className="min-w-[160px]">Solved Date</th>
+                  <th className="min-w-[100px] text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
+              <tbody>
                 {recentSolved.map((item, idx) => {
                   const cfLink = `https://codeforces.com/problemset/problem/${item.contestId}/${item.problemIndex}`;
                   return (
-                    <tr key={idx} className="hover:bg-slate-800/30 transition">
-                      <td className="py-3 px-4 font-sans font-semibold text-slate-200">
-                        {item.problemName || item.name || `Problem ${item.problemIndex}`}
+                    <tr key={idx}>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <a
+                            href={cfLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-slate-200 hover:text-indigo-400 transition"
+                          >
+                            {item.problemName || item.name || `Problem ${item.problemIndex}`}
+                          </a>
+                        </div>
                       </td>
-                      <td className="py-3 px-4 text-brand-accent">
+
+                      <td className="font-mono text-xs font-semibold text-indigo-400">
                         {item.contestId}{item.problemIndex}
                       </td>
-                      <td className="py-3 px-4 text-slate-400">
+
+                      <td>
+                        {item.rating ? (
+                          <RatingBadge rating={item.rating} size="xs" showRank={false} />
+                        ) : (
+                          <span className="text-xs font-mono text-slate-600">—</span>
+                        )}
+                      </td>
+
+                      <td className="font-mono text-xs text-slate-400">
                         {(() => {
                           const dateVal = item.firstAcceptedAt || item.syncedAt || item.solvedAt;
                           if (!dateVal) return 'Verified';
                           const d = new Date(dateVal);
-                          return isNaN(d.getTime()) ? 'Verified' : d.toLocaleDateString();
+                          return isNaN(d.getTime()) ? 'Verified' : d.toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          });
                         })()}
                       </td>
-                      <td className="py-3 px-4 text-right">
+
+                      <td className="text-right">
                         <a
                           href={cfLink}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-brand-primary hover:text-brand-accent inline-flex items-center gap-1 font-sans text-xs"
+                          className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1 font-mono"
                         >
                           CF <ExternalLink className="w-3 h-3" />
                         </a>
@@ -292,7 +352,7 @@ export default function Profile() {
             </table>
           </div>
         ) : (
-          <p className="text-xs text-slate-500 py-4 text-center">
+          <p className="text-xs text-slate-500 py-8 text-center">
             No problems tracked yet. Sync your Codeforces account or solve sheet problems to record submissions.
           </p>
         )}

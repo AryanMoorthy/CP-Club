@@ -3,22 +3,34 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import CountdownTimer from '../../components/CountdownTimer';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton from '../../components/Skeleton';
 import EmptyState from '../../components/EmptyState';
+import PageHeader from '../../components/PageHeader';
 import {
   CalendarCheck2,
-  Clock,
   Plus,
   ArrowRight,
-  CheckCircle2,
-  AlertCircle,
   FileSpreadsheet,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
+
+function getDeadlineStatus(deadline) {
+  const now = new Date();
+  const d   = new Date(deadline);
+  const diffMs = d - now;
+  if (diffMs < 0)                      return { label: 'Overdue',   cls: 'badge badge-rose' };
+  if (diffMs < 1000 * 60 * 60 * 24)   return { label: 'Due today', cls: 'badge badge-amber' };
+  if (diffMs < 1000 * 60 * 60 * 24 * 3) return { label: 'Due soon', cls: 'badge badge-amber' };
+  return { label: 'Active', cls: 'badge badge-emerald' };
+}
 
 export default function Assignments() {
   const { isMentor } = useAuth();
   const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
+  const [filter, setFilter]           = useState('all'); // all | active | overdue
 
   const fetchAssignments = async () => {
     try {
@@ -35,87 +47,112 @@ export default function Assignments() {
     }
   };
 
-  useEffect(() => {
-    fetchAssignments();
-  }, []);
+  useEffect(() => { fetchAssignments(); }, []);
+
+  const now = new Date();
+  const filtered = assignments.filter((a) => {
+    const expired = new Date(a.deadline) < now;
+    if (filter === 'active')  return !expired;
+    if (filter === 'overdue') return expired;
+    return true;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Club Assignments
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Complete assigned problem sets within the deadline to maintain active standing.
-          </p>
-        </div>
+      <PageHeader
+        title="Assignments"
+        subtitle="Complete assigned problem sets within the deadline to maintain active standing."
+        icon={CalendarCheck2}
+        iconColor="text-cyan-400"
+        actions={
+          isMentor && (
+            <Link to="/mentor/assignments/new" className="btn-primary text-xs">
+              <Plus className="w-3.5 h-3.5" />
+              Create Assignment
+            </Link>
+          )
+        }
+      />
 
-        {isMentor && (
-          <Link
-            to="/mentor/assignments/new"
-            className="btn-primary flex items-center gap-2 text-xs font-semibold self-start sm:self-auto"
+      {/* Filter tabs */}
+      <div className="tab-bar self-start">
+        {[
+          { id: 'all',     label: 'All' },
+          { id: 'active',  label: 'Active' },
+          { id: 'overdue', label: 'Overdue' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setFilter(t.id)}
+            className={`tab-item ${filter === t.id ? 'active' : ''}`}
           >
-            <Plus className="w-4 h-4" />
-            <span>Create Assignment</span>
-          </Link>
-        )}
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
-        <LoadingSpinner text="Fetching assignments..." />
-      ) : assignments.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {assignments.map((assignment) => {
-            const isExpired = new Date(assignment.deadline) < new Date();
+        <Skeleton.Grid cards={3} />
+      ) : filtered.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((assignment) => {
+            const isExpired    = new Date(assignment.deadline) < now;
             const totalProblems = assignment.problems?.length || 0;
+            const status       = getDeadlineStatus(assignment.deadline);
 
             return (
               <div
                 key={assignment._id}
-                className="glass-card rounded-2xl border border-slate-800 p-5 flex flex-col justify-between hover:border-slate-700 transition shadow-lg"
+                className={`glass-card p-5 flex flex-col justify-between transition hover:border-slate-700 ${
+                  isExpired ? 'opacity-75' : ''
+                }`}
               >
                 <div>
+                  {/* Status + pass threshold */}
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <CountdownTimer targetDate={assignment.deadline} />
-                    <span className="text-xs font-mono text-slate-400">
+                    <span className={status.cls}>{status.label}</span>
+                    <span className="text-[11px] text-slate-500 font-mono">
                       Pass: {assignment.passPercentage || 70}%
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-white line-clamp-1">
-                    {assignment.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                  <h3 className="text-sm font-semibold text-slate-100 line-clamp-1">{assignment.title}</h3>
+                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
                     {assignment.description || 'Mandatory problem set for club members.'}
                   </p>
 
-                  <div className="mt-4 p-3 rounded-xl bg-dark-900 border border-slate-800 flex items-center justify-between text-xs font-mono">
-                    <span className="text-slate-400">Target Problems:</span>
-                    <span className="text-brand-accent font-semibold">{totalProblems} Problems</span>
+                  {/* Deadline countdown */}
+                  <div className="mt-3">
+                    <CountdownTimer targetDate={assignment.deadline} />
+                  </div>
+
+                  {/* Problem count */}
+                  <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-slate-600" />
+                    <span>{totalProblems} problem{totalProblems !== 1 ? 's' : ''} assigned</span>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between">
+                {/* Footer */}
+                <div className="mt-5 pt-4 border-t border-[#1e293b] flex items-center justify-between gap-2">
                   {assignment.sheetId ? (
                     <Link
                       to={`/sheets/${assignment.sheetId}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:text-brand-accent transition"
+                      className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
                     >
-                      <span>Open Sheet</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      Open Sheet <ArrowRight className="w-3 h-3" />
                     </Link>
                   ) : (
-                    <span className="text-xs text-slate-500">Custom Problems</span>
+                    <span className="text-xs text-slate-600">Custom Problems</span>
                   )}
 
                   {isMentor && (
                     <Link
                       to={`/mentor/assignments/${assignment._id}/progress`}
-                      className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1"
+                      className="btn-secondary py-1 px-2.5 text-xs"
                     >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Review</span>
+                      <FileSpreadsheet className="w-3 h-3 text-amber-400" />
+                      Review
                     </Link>
                   )}
                 </div>
@@ -125,8 +162,12 @@ export default function Assignments() {
         </div>
       ) : (
         <EmptyState
-          title="No assignments right now"
-          description="Great job! You have no pending assignments from mentors."
+          title={filter === 'overdue' ? 'No overdue assignments' : 'No assignments'}
+          description={
+            filter === 'overdue'
+              ? "Great — you're on top of everything!"
+              : 'No assignments from mentors at the moment.'
+          }
           icon={CalendarCheck2}
         />
       )}

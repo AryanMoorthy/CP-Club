@@ -2,18 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton from '../../components/Skeleton';
 import EmptyState from '../../components/EmptyState';
+import PageHeader from '../../components/PageHeader';
 import {
   Search,
-  Filter,
   FileCode2,
   Plus,
   ArrowRight,
-  BookOpen,
   Layers,
   Sparkles,
+  Tag,
 } from 'lucide-react';
+
+const DIFFICULTIES = [
+  { value: '', label: 'All Difficulties' },
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hard', label: 'Hard' },
+  { value: 'expert', label: 'Expert' },
+];
 
 export default function ProblemSheets() {
   const { isMentor } = useAuth();
@@ -32,7 +41,6 @@ export default function ProblemSheets() {
       if (selectedTag) params.append('tag', selectedTag);
 
       const res = await api.get(`/problem-sheets?${params.toString()}`);
-      // Axios interceptor returns response.data, so res = { success, data }
       if (res && res.success) {
         const sheetsData = res.data?.sheets || res.data || [];
         setSheets(Array.isArray(sheetsData) ? sheetsData : []);
@@ -59,43 +67,46 @@ export default function ProblemSheets() {
   // Collect unique tags
   const allTags = Array.from(
     new Set(sheets.flatMap((s) => s.tags || []))
-  ).slice(0, 10);
+  ).slice(0, 12);
+
+  const getDifficultyBadge = (diff) => {
+    switch (diff?.toLowerCase()) {
+      case 'beginner': return 'badge badge-emerald';
+      case 'easy':     return 'badge badge-cyan';
+      case 'medium':   return 'badge badge-amber';
+      case 'hard':     return 'badge badge-rose';
+      case 'expert':   return 'badge badge-purple';
+      default:         return 'badge badge-slate';
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header with Title and Create Button for Mentors */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Curated Problem Sheets
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Master CP patterns with targeted problem collections curated by club mentors.
-          </p>
-        </div>
-
-        {isMentor && (
-          <Link
-            to="/mentor/sheets/new"
-            className="btn-primary flex items-center gap-2 text-xs font-semibold self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Sheet</span>
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Problem Sheets"
+        subtitle="Master competitive programming patterns through curated problem sets."
+        icon={FileCode2}
+        iconColor="text-indigo-400"
+        actions={
+          isMentor && (
+            <Link to="/mentor/sheets/new" className="btn-primary text-xs">
+              <Plus className="w-3.5 h-3.5" />
+              Create Sheet
+            </Link>
+          )
+        }
+      />
 
       {/* Filter and Search Bar */}
-      <div className="glass-card p-4 rounded-2xl border border-slate-800 space-y-3">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      <div className="glass-card p-3.5 space-y-3">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-2.5">
+          <div className="search-box flex-1">
+            <Search className="w-4 h-4" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search sheets by title or topic..."
-              className="w-full glass-input rounded-xl py-2 pl-10 pr-4 text-sm"
             />
           </div>
 
@@ -103,17 +114,17 @@ export default function ProblemSheets() {
             <select
               value={selectedDifficulty}
               onChange={(e) => setSelectedDifficulty(e.target.value)}
-              className="glass-input rounded-xl py-2 px-3 text-xs bg-dark-900 text-slate-300"
+              aria-label="Filter by difficulty"
+              className="input-field py-1.5 px-3 text-xs w-auto cursor-pointer"
             >
-              <option value="">All Difficulties</option>
-              <option value="beginner">Beginner</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-              <option value="expert">Expert</option>
+              {DIFFICULTIES.map((d) => (
+                <option key={d.value} value={d.value} className="bg-[#0b0f19]">
+                  {d.label}
+                </option>
+              ))}
             </select>
 
-            <button type="submit" className="btn-secondary text-xs">
+            <button type="submit" className="btn-secondary py-1.5 text-xs">
               Search
             </button>
           </div>
@@ -121,14 +132,17 @@ export default function ProblemSheets() {
 
         {/* Quick Tag Pills */}
         {allTags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-800/60">
-            <span className="text-[11px] text-slate-400 font-semibold mr-1">Tags:</span>
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#1e293b]">
+            <span className="text-[11px] text-slate-500 font-medium mr-1 flex items-center gap-1">
+              <Tag className="w-3 h-3 text-slate-500" />
+              Topics:
+            </span>
             <button
               onClick={() => setSelectedTag('')}
-              className={`px-2 py-0.5 rounded-lg text-[11px] font-mono transition ${
+              className={`px-2 py-0.5 rounded text-[11px] font-mono transition ${
                 !selectedTag
-                  ? 'bg-brand-primary text-white'
-                  : 'bg-dark-900 text-slate-400 hover:text-white'
+                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
               All
@@ -137,10 +151,10 @@ export default function ProblemSheets() {
               <button
                 key={tag}
                 onClick={() => setSelectedTag(tag === selectedTag ? '' : tag)}
-                className={`px-2 py-0.5 rounded-lg text-[11px] font-mono transition ${
+                className={`px-2 py-0.5 rounded text-[11px] font-mono transition ${
                   selectedTag === tag
-                    ? 'bg-brand-primary text-white'
-                    : 'bg-dark-900 text-slate-400 hover:text-white'
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
                 #{tag}
@@ -152,48 +166,39 @@ export default function ProblemSheets() {
 
       {/* Sheets Grid */}
       {loading ? (
-        <LoadingSpinner text="Fetching sheets..." />
+        <Skeleton.Grid cards={6} />
       ) : sheets.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sheets.map((sheet) => {
-            const difficultyColors = {
-              beginner: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-              easy: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
-              medium: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
-              hard: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
-              expert: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-            }[sheet.difficulty] || 'bg-slate-800 text-slate-300 border-slate-700';
-
+            const count = sheet.problems?.length || 0;
             return (
               <div
                 key={sheet._id}
-                className="glass-card rounded-2xl border border-slate-800/80 p-5 flex flex-col justify-between hover:border-slate-700 transition group hover:shadow-xl"
+                className="glass-card p-5 flex flex-col justify-between hover:border-slate-700 transition group"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span
-                      className={`text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${difficultyColors}`}
-                    >
-                      {sheet.difficulty}
+                    <span className={getDifficultyBadge(sheet.difficulty)}>
+                      {sheet.difficulty || 'All Levels'}
                     </span>
-                    <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
-                      <Layers className="w-3 h-3 text-slate-400" />
-                      {sheet.problems?.length || 0} problems
+                    <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
+                      <Layers className="w-3 h-3 text-slate-600" />
+                      {count} problem{count !== 1 ? 's' : ''}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-white group-hover:text-brand-accent transition line-clamp-1">
+                  <h3 className="text-sm font-semibold text-slate-100 group-hover:text-indigo-300 transition line-clamp-1">
                     {sheet.title}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                    {sheet.description || 'Curated set of competitive programming problems.'}
+                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
+                    {sheet.description || 'Targeted competitive programming problem set.'}
                   </p>
 
-                  <div className="flex flex-wrap gap-1 mt-4">
+                  <div className="flex flex-wrap gap-1 mt-3">
                     {(sheet.tags || []).slice(0, 4).map((tag) => (
                       <span
                         key={tag}
-                        className="text-[10px] font-mono text-slate-400 bg-dark-900 border border-slate-800 px-2 py-0.5 rounded-md"
+                        className="text-[10px] font-mono text-slate-400 bg-slate-800/50 border border-slate-800 px-1.5 py-0.5 rounded"
                       >
                         #{tag}
                       </span>
@@ -201,16 +206,16 @@ export default function ProblemSheets() {
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between">
-                  <span className="text-xs text-slate-400">
-                    By {sheet.createdBy?.name || 'Club Mentor'}
+                <div className="mt-5 pt-3.5 border-t border-[#1e293b] flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">
+                    By {sheet.createdBy?.name || 'Mentor'}
                   </span>
                   <Link
                     to={`/sheets/${sheet._id}`}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary group-hover:text-brand-accent transition"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition"
                   >
-                    <span>Start Practice</span>
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    <span>Practice</span>
+                    <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                   </Link>
                 </div>
               </div>
@@ -220,7 +225,7 @@ export default function ProblemSheets() {
       ) : (
         <EmptyState
           title="No problem sheets found"
-          description="Try adjusting your search criteria or tags."
+          description="Try clearing your search query or tag filter."
           icon={FileCode2}
         />
       )}

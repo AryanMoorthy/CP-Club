@@ -8,14 +8,20 @@ export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-dark-950 flex flex-col text-slate-100">
+    <div className="min-h-screen bg-[#07090e] flex flex-col text-slate-300">
       <Navbar onMenuToggle={() => setSidebarOpen((prev) => !prev)} />
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 max-w-7xl mx-auto w-full">
-          <ErrorBoundary>
-            <Outlet />
-          </ErrorBoundary>
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto"
+          tabIndex={-1}
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
+          </div>
         </main>
       </div>
     </div>

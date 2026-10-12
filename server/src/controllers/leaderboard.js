@@ -81,7 +81,11 @@ export async function weeklyLeaderboard(req, res, next) {
         batch: entry.user.batch,
         role: entry.user.role,
         codeforcesHandle: entry.user.codeforcesHandle,
+        codeforcesProfile: entry.user.codeforcesProfile,
       },
+      rating: entry.user.codeforcesProfile?.rating || null,
+      maxRating: entry.user.codeforcesProfile?.maxRating || null,
+      cfRank: entry.user.codeforcesProfile?.rank || null,
       weeklyCount: entry.weeklyCount,
       weekStart: weekStart.toISOString(),
     }));
@@ -116,7 +120,15 @@ export async function improvementLeaderboard(req, res, next) {
       .sort((a, b) => (b.codeforcesProfile?.rating || 0) - (a.codeforcesProfile?.rating || 0))
       .map((u, i) => ({
         rank: i + 1,
-        user: { _id: u._id, name: u.name, email: u.email, batch: u.batch, role: u.role, codeforcesHandle: u.codeforcesHandle },
+        user: {
+          _id: u._id,
+          name: u.name,
+          email: u.email,
+          batch: u.batch,
+          role: u.role,
+          codeforcesHandle: u.codeforcesHandle,
+          codeforcesProfile: u.codeforcesProfile,
+        },
         currentRating: u.codeforcesProfile?.rating || null,
         maxRating: u.codeforcesProfile?.maxRating || null,
         cfRank: u.codeforcesProfile?.rank || null,
@@ -164,9 +176,12 @@ export async function totalSolvedLeaderboard(req, res, next) {
         email: entry.user.email,
         batch: entry.user.batch,
         codeforcesHandle: entry.user.codeforcesHandle,
+        codeforcesProfile: entry.user.codeforcesProfile,
       },
       totalCount: entry.totalCount,
       rating: entry.user.codeforcesProfile?.rating || null,
+      maxRating: entry.user.codeforcesProfile?.maxRating || null,
+      cfRank: entry.user.codeforcesProfile?.rank || null,
     }));
 
     res.json({ success: true, data: { leaderboard: ranked } });

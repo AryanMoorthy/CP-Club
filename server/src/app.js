@@ -33,19 +33,23 @@ app.use(
 );
 
 // ── Rate Limiting ────────────────────────────────────────────────────────────
+const isDev = process.env.NODE_ENV !== 'production';
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: isDev ? 5000 : 500,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => isDev,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: isDev ? 1000 : 60,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => isDev,
   message: { success: false, message: 'Too many auth attempts, please try again later.' },
 });
 

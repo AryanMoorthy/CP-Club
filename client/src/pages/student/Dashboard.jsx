@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
 import RatingBadge from '../../components/RatingBadge';
 import CountdownTimer from '../../components/CountdownTimer';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton from '../../components/Skeleton';
 import {
   Trophy,
   CheckCircle2,
@@ -16,6 +17,7 @@ import {
   Megaphone,
   RefreshCw,
   ExternalLink,
+  Layers,
 } from 'lucide-react';
 import {
   LineChart,
@@ -29,352 +31,374 @@ import {
 
 export default function Dashboard() {
   const { user, syncCodeforces, isSyncingCF } = useAuth();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
     recentAnnouncements: [],
     activeAssignments: [],
     popularSheets: [],
-    stats: {
-      totalSolved: 0,
-      currentRating: 0,
-      maxRating: 0,
-      ratingHistory: [],
-    },
+    stats: { totalSolved: 0, currentRating: 0, maxRating: 0, ratingHistory: [] },
   });
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [annRes, assignRes, sheetsRes, userStatsRes] = await Promise.allSettled([
+      const [annRes, assignRes, sheetsRes, statsRes] = await Promise.allSettled([
         api.get('/announcements?limit=3'),
         api.get('/assignments'),
         api.get('/problem-sheets?limit=4'),
-        api.get('/users/stats'),
+        api.get('/users/me/codeforces/stats'),
       ]);
 
-      const annData = annRes.status === 'fulfilled' && annRes.value.success ? (annRes.value.data?.announcements || annRes.value.data || []) : [];
-      const assignData = assignRes.status === 'fulfilled' && assignRes.value.success ? (assignRes.value.data?.assignments || assignRes.value.data || []) : [];
-      const sheetsData = sheetsRes.status === 'fulfilled' && sheetsRes.value.success ? (sheetsRes.value.data?.sheets || sheetsRes.value.data || []) : [];
-      const statsData = userStatsRes.status === 'fulfilled' && userStatsRes.value.success ? (userStatsRes.value.data?.stats || userStatsRes.value.data) : null;
+      const ann    = annRes.status    === 'fulfilled' && annRes.value.success    ? (annRes.value.data?.announcements    || annRes.value.data    || []) : [];
+      const assign = assignRes.status === 'fulfilled' && assignRes.value.success ? (assignRes.value.data?.assignments   || assignRes.value.data || []) : [];
+      const sheets = sheetsRes.status === 'fulfilled' && sheetsRes.value.success ? (sheetsRes.value.data?.sheets        || sheetsRes.value.data || []) : [];
+      const cfStats = statsRes.status === 'fulfilled' && statsRes.value.success  ? statsRes.value.data : null;
+
+      const profile = cfStats?.profile || user?.codeforcesProfile || {};
+      const ratingHistory = cfStats?.ratingHistory || profile?.ratingHistory || [];
 
       setData({
-        recentAnnouncements: Array.isArray(annData) ? annData.slice(0, 3) : [],
-        activeAssignments: Array.isArray(assignData) ? assignData.slice(0, 3) : [],
-        popularSheets: Array.isArray(sheetsData) ? sheetsData.slice(0, 4) : [],
-        stats: statsData || {
-          totalSolved: user?.codeforcesProfile?.totalSolvedCount || 0,
-          currentRating: user?.codeforcesProfile?.rating || 0,
-          maxRating: user?.codeforcesProfile?.maxRating || 0,
-          ratingHistory: user?.codeforcesProfile?.ratingHistory || [],
+        recentAnnouncements: Array.isArray(ann)    ? ann.slice(0, 3)    : [],
+        activeAssignments:   Array.isArray(assign) ? assign.slice(0, 4) : [],
+        popularSheets:       Array.isArray(sheets) ? sheets.slice(0, 4) : [],
+        stats: {
+          totalSolved:   cfStats?.totalSolved   ?? profile?.totalSolvedCount ?? 0,
+          currentRating: profile?.rating        ?? 0,
+          maxRating:     profile?.maxRating     ?? 0,
+          ratingHistory: Array.isArray(ratingHistory) ? ratingHistory : [],
         },
       });
     } catch (err) {
-      console.error('Failed to load dashboard:', err);
+      console.error('Dashboard load error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [user]);
+  useEffect(() => { fetchDashboardData(); }, [user]);
+
+  const handleSync = async () => {
+    const res = await syncCodeforces();
+    if (res.success) {
+      toast.success('Codeforces synced successfully!');
+      fetchDashboardData();
+    } else {
+      toast.error(`Sync failed: ${res.error}`);
+    }
+  };
+
+  const ratingChartData = (data.stats.ratingHistory || []).map((h) => {
+    const ratingVal = h.newRating ?? h.rating ?? 0;
+    const timeSec = h.ratingUpdateTimeSeconds || (h.date ? new Date(h.date).getTime() / 1000 : null);
+    const dateStr = timeSec
+      ? new Date(timeSec * 1000).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+      : 'Contest';
+    return {
+      contest: h.contestName || `Contest #${h.contestId || ''}`,
+      rating: ratingVal,
+      date: dateStr,
+    };
+  }).filter((d) => d.rating > 0);
+
+  // Stat card config
+  const statCards = [
+    {
+      label: 'CF Rating',
+      value: data.stats.currentRating > 0 ? data.stats.currentRating : 'Unrated',
+      sub:   user?.codeforcesProfile?.rank || 'Unrated',
+      icon:  Trophy,
+      iconBg: 'bg-indigo-500/10',
+      iconColor: 'text-indigo-400',
+    },
+    {
+      label: 'Peak Rating',
+      value: data.stats.maxRating > 0 ? data.stats.maxRating : '—',
+      sub:   user?.codeforcesProfile?.maxRank || '—',
+      icon:  Flame,
+      iconBg: 'bg-amber-500/10',
+      iconColor: 'text-amber-400',
+    },
+    {
+      label: 'Verified Solved',
+      value: data.stats.totalSolved || 0,
+      sub:   'All time on platform',
+      icon:  CheckCircle2,
+      iconBg: 'bg-emerald-500/10',
+      iconColor: 'text-emerald-400',
+      valueColor: 'text-emerald-400',
+    },
+    {
+      label: 'Active Tasks',
+      value: data.activeAssignments.length,
+      sub:   'Open assignments',
+      icon:  CalendarCheck2,
+      iconBg: 'bg-cyan-500/10',
+      iconColor: 'text-cyan-400',
+    },
+  ];
 
   if (loading) {
-    return <LoadingSpinner text="Loading your dashboard..." />;
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {/* Welcome skeleton */}
+        <div className="flex items-center justify-between">
+          <Skeleton.Text lines={2} className="w-64" />
+          <Skeleton className="h-8 w-32" />
+        </div>
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <Skeleton.Card key={i} />)}
+        </div>
+        {/* Chart + Assignments skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2">
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
+          <Skeleton.List rows={3} />
+        </div>
+      </div>
+    );
   }
 
-  // Format CF rating history for chart
-  const ratingChartData = (data.stats.ratingHistory || []).map((h) => ({
-    contest: h.contestName?.slice(0, 15) || 'Contest',
-    rating: h.newRating,
-    date: new Date(h.ratingUpdateTimeSeconds * 1000).toLocaleDateString(undefined, {
-      month: 'short',
-      year: '2-digit',
-    }),
-  }));
-
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Welcome & Overview Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-card p-6 rounded-2xl border border-slate-800">
+    <div className="space-y-6 animate-fade-in">
+      {/* Welcome bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Hello, {user?.name?.split(' ')[0]} 👋
-            </h1>
-            {user?.codeforcesHandle && (
-              <RatingBadge rating={user?.codeforcesProfile?.rating || 0} size="sm" />
-            )}
-          </div>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-lg font-semibold text-slate-100">
+            Hello, {user?.name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">
             {user?.codeforcesHandle
-              ? `Codeforces @${user.codeforcesHandle} is linked and tracking.`
-              : 'Link your Codeforces handle in your profile to start tracking your rating.'}
+              ? `Tracking @${user.codeforcesHandle} · Synced daily at midnight`
+              : 'Link your Codeforces handle in Profile to start tracking.'}
           </p>
         </div>
-
-        {user?.codeforcesHandle ? (
-          <button
-            onClick={syncCodeforces}
-            disabled={isSyncingCF}
-            className="btn-primary self-start sm:self-auto flex items-center gap-2 text-xs font-semibold"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCF ? 'animate-spin' : ''}`} />
-            <span>{isSyncingCF ? 'Syncing...' : 'Sync Codeforces'}</span>
-          </button>
-        ) : (
-          <Link to="/profile" className="btn-primary text-xs self-start sm:self-auto">
-            Connect Codeforces
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {user?.codeforcesHandle ? (
+            <button onClick={handleSync} disabled={isSyncingCF} className="btn-secondary text-xs">
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCF ? 'animate-spin' : ''}`} />
+              {isSyncingCF ? 'Syncing…' : 'Sync CF'}
+            </button>
+          ) : (
+            <Link to="/profile" className="btn-primary text-xs">Connect Codeforces</Link>
+          )}
+          <Link to="/sheets" className="btn-secondary text-xs">
+            <FileCode2 className="w-3.5 h-3.5" />
+            Browse Sheets
           </Link>
-        )}
-      </div>
-
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* CF Current Rating */}
-        <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">CF Rating</p>
-            <h3 className="text-2xl font-bold text-white mt-1 font-mono">
-              {data.stats.currentRating > 0 ? data.stats.currentRating : 'Unrated'}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Rank: {user?.codeforcesProfile?.rank || 'Unrated'}
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-            <Trophy className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Max Rating */}
-        <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Peak Rating</p>
-            <h3 className="text-2xl font-bold text-white mt-1 font-mono">
-              {data.stats.maxRating > 0 ? data.stats.maxRating : '—'}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Peak: {user?.codeforcesProfile?.maxRank || '—'}
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-            <Flame className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Solved Problems */}
-        <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Problems Solved</p>
-            <h3 className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
-              {data.stats.totalSolved || 0}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">Verified on platform</p>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Active Assignments */}
-        <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Tasks</p>
-            <h3 className="text-2xl font-bold text-cyan-400 mt-1 font-mono">
-              {data.activeAssignments.length}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">Club assignments</p>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-            <CalendarCheck2 className="w-6 h-6" />
-          </div>
         </div>
       </div>
 
-      {/* Main Grid: Rating Chart & Active Assignments */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Rating Progression Chart */}
-        <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-brand-primary" />
-              <h3 className="text-base font-semibold text-white">Codeforces Rating History</h3>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {statCards.map((s) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.label} className="stat-card">
+              <div>
+                <p className="stat-card-label">{s.label}</p>
+                <p className={`stat-card-value ${s.valueColor || 'text-slate-100'}`}>
+                  {s.value}
+                </p>
+                <p className="stat-card-sub">{s.sub}</p>
+              </div>
+              <div className={`stat-card-icon ${s.iconBg}`}>
+                <Icon className={`w-5 h-5 ${s.iconColor}`} />
+              </div>
             </div>
+          );
+        })}
+      </div>
+
+      {/* Main Grid: Chart + Assignments */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Rating Chart */}
+        <div className="lg:col-span-2 glass-card p-5">
+          <div className="section-header">
+            <h3 className="section-title">
+              <TrendingUp className="w-4 h-4 text-indigo-400" />
+              Rating History
+            </h3>
             {user?.codeforcesHandle && (
               <a
                 href={`https://codeforces.com/profile/${user.codeforcesHandle}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-brand-accent hover:underline flex items-center gap-1 font-mono"
+                className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 transition"
               >
-                Profile <ExternalLink className="w-3 h-3" />
+                View on CF <ExternalLink className="w-3 h-3" />
               </a>
             )}
           </div>
 
           {ratingChartData.length > 0 ? (
-            <div className="h-64 w-full">
+            <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={ratingChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="date" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} domain={['dataMin - 100', 'dataMax + 100']} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      borderColor: '#334155',
-                      borderRadius: '0.75rem',
-                      color: '#f8fafc',
-                      fontSize: '12px',
+                <LineChart data={ratingChartData} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#334155"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={ratingChartData.length > 20 ? Math.floor(ratingChartData.length / 8) : 0}
+                  />
+                  <YAxis
+                    stroke="#334155"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={([dataMin, dataMax]) => {
+                      const lo = Math.floor((dataMin - 100) / 100) * 100;
+                      const hi = Math.ceil((dataMax + 100) / 100) * 100;
+                      return [lo, hi];
                     }}
+                    tickCount={6}
+                    allowDecimals={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="rating"
                     stroke="#6366f1"
-                    strokeWidth={2.5}
-                    dot={{ fill: '#38bdf8', strokeWidth: 1, r: 3 }}
-                    activeDot={{ r: 6, fill: '#818cf8' }}
+                    strokeWidth={2}
+                    dot={{ fill: '#6366f1', stroke: '#0f172a', strokeWidth: 2, r: 3 }}
+                    activeDot={{ r: 6, fill: '#818cf8', stroke: '#6366f1', strokeWidth: 2 }}
+                    connectNulls
+                  />
+                  <Tooltip
+                    cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    contentStyle={{
+                      background: '#0f1623',
+                      border: '1px solid #1e293b',
+                      borderRadius: '0.5rem',
+                      fontSize: '12px',
+                      padding: '8px 12px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                    }}
+                    labelStyle={{ color: '#94a3b8', fontWeight: 600, marginBottom: '4px' }}
+                    itemStyle={{ color: '#818cf8', fontFamily: 'monospace', fontWeight: 700 }}
+                    labelFormatter={(label, payload) => {
+                      const d = payload?.[0]?.payload;
+                      return d?.contest || label;
+                    }}
+                    formatter={(value) => [value, 'Rating']}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-64 flex flex-col items-center justify-center text-center p-6 border border-dashed border-slate-800 rounded-xl">
-              <p className="text-sm text-slate-400">
+            <div className="h-56 flex flex-col items-center justify-center text-center border border-dashed border-[#1e293b] rounded-xl">
+              <TrendingUp className="w-8 h-8 text-slate-700 mb-2" />
+              <p className="text-sm text-slate-500">
                 {user?.codeforcesHandle
-                  ? 'No rated contest participation recorded yet for this handle.'
-                  : 'Link your Codeforces handle in your profile to display your rating history graph.'}
+                  ? 'No rated contests found for this handle.'
+                  : 'Link your Codeforces handle to see your rating chart.'}
               </p>
               {!user?.codeforcesHandle && (
-                <Link to="/profile" className="btn-secondary text-xs mt-3">
-                  Connect Handle
-                </Link>
+                <Link to="/profile" className="btn-secondary text-xs mt-3">Connect Handle</Link>
               )}
             </div>
           )}
         </div>
 
-        {/* Right Col: Active Assignments */}
-        <div className="glass-card p-6 rounded-2xl border border-slate-800 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <CalendarCheck2 className="w-5 h-5 text-cyan-400" />
+        {/* Active Assignments */}
+        <div className="glass-card p-5 flex flex-col">
+          <div className="section-header">
+            <h3 className="section-title">
+              <CalendarCheck2 className="w-4 h-4 text-cyan-400" />
               Active Assignments
             </h3>
-            <Link to="/assignments" className="text-xs text-brand-accent hover:underline">
-              View All
+            <Link to="/assignments" className="text-xs text-slate-500 hover:text-slate-300 transition">
+              All →
             </Link>
           </div>
 
-          <div className="flex-1 space-y-3">
+          <div className="flex-1 space-y-2">
             {data.activeAssignments.length > 0 ? (
               data.activeAssignments.map((a) => (
-                <div
-                  key={a._id}
-                  className="p-3.5 rounded-xl bg-dark-900/60 border border-slate-800/80 hover:border-slate-700 transition"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-slate-200 line-clamp-1">{a.title}</h4>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1 line-clamp-1">{a.description}</p>
-                  <div className="mt-3 flex items-center justify-between">
+                <div key={a._id} className="surface-inset p-3 rounded-lg">
+                  <h4 className="text-xs font-semibold text-slate-200 line-clamp-1">{a.title}</h4>
+                  <div className="mt-2 flex items-center justify-between gap-2">
                     <CountdownTimer targetDate={a.deadline} />
-                    <Link
-                      to={`/assignments`}
-                      className="text-xs text-brand-primary font-medium hover:underline flex items-center gap-1"
-                    >
-                      Solve <ArrowRight className="w-3 h-3" />
+                    <Link to="/assignments" className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition">
+                      View →
                     </Link>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 text-sm">
-                <CheckCircle2 className="w-8 h-8 text-slate-600 mb-2" />
-                No pending assignments at the moment!
+              <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
+                <CheckCircle2 className="w-7 h-7 text-slate-700 mb-2" />
+                <p className="text-xs text-slate-500">No pending assignments</p>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Bottom Section: Popular Sheets & Recent Club Announcements */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recommended Problem Sheets */}
-        <div className="glass-card p-6 rounded-2xl border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <FileCode2 className="w-5 h-5 text-indigo-400" />
+      {/* Bottom Grid: Sheets + Announcements */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Problem Sheets */}
+        <div className="glass-card p-5">
+          <div className="section-header">
+            <h3 className="section-title">
+              <FileCode2 className="w-4 h-4 text-indigo-400" />
               Problem Sheets
             </h3>
-            <Link to="/sheets" className="text-xs text-brand-accent hover:underline">
-              Browse All
+            <Link to="/sheets" className="text-xs text-slate-500 hover:text-slate-300 transition">
+              Browse all →
             </Link>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {data.popularSheets.map((sheet) => (
-              <Link
-                key={sheet._id}
-                to={`/sheets/${sheet._id}`}
-                className="p-4 rounded-xl bg-dark-900/60 border border-slate-800/80 hover:border-indigo-500/40 hover:bg-slate-850/60 transition group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
-                    {sheet.difficulty || 'All levels'}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {sheet.problems?.length || 0} problems
-                  </span>
-                </div>
-                <h4 className="text-sm font-semibold text-slate-200 mt-2 group-hover:text-white line-clamp-1">
-                  {sheet.title}
-                </h4>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {(sheet.tags || []).slice(0, 3).map((t) => (
-                    <span key={t} className="text-[10px] text-slate-400 bg-dark-850 px-1.5 py-0.5 rounded">
-                      #{t}
-                    </span>
-                  ))}
-                </div>
-              </Link>
-            ))}
+          <div className="space-y-2">
+            {data.popularSheets.length > 0 ? (
+              data.popularSheets.map((sheet) => (
+                <Link
+                  key={sheet._id}
+                  to={`/sheets/${sheet._id}`}
+                  className="flex items-center justify-between p-3 rounded-lg surface-inset hover:border-indigo-500/30 hover:bg-indigo-500/5 transition group border border-transparent"
+                >
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-semibold text-slate-300 group-hover:text-slate-100 truncate">{sheet.title}</h4>
+                    <p className="text-[11px] text-slate-600 mt-0.5 capitalize">{sheet.difficulty} · {sheet.problems?.length || 0} problems</p>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-indigo-400 flex-shrink-0 transition" />
+                </Link>
+              ))
+            ) : (
+              <p className="text-xs text-slate-600 py-4 text-center">No sheets available.</p>
+            )}
           </div>
         </div>
 
-        {/* Club Announcements */}
-        <div className="glass-card p-6 rounded-2xl border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <Megaphone className="w-5 h-5 text-amber-400" />
-              Club Announcements
+        {/* Announcements */}
+        <div className="glass-card p-5">
+          <div className="section-header">
+            <h3 className="section-title">
+              <Megaphone className="w-4 h-4 text-amber-400" />
+              Announcements
             </h3>
-            <Link to="/announcements" className="text-xs text-brand-accent hover:underline">
-              View All
+            <Link to="/announcements" className="text-xs text-slate-500 hover:text-slate-300 transition">
+              All →
             </Link>
           </div>
-
-          <div className="space-y-3">
-            {data.recentAnnouncements.map((ann) => (
-              <div
-                key={ann._id}
-                className="p-3.5 rounded-xl bg-dark-900/60 border border-slate-800/80"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-slate-200 line-clamp-1">{ann.title}</h4>
-                  <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">
-                    {new Date(ann.createdAt).toLocaleDateString()}
-                  </span>
+          <div className="space-y-2">
+            {data.recentAnnouncements.length > 0 ? (
+              data.recentAnnouncements.map((ann) => (
+                <div key={ann._id} className="surface-inset p-3 rounded-lg">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-xs font-semibold text-slate-200 line-clamp-1">{ann.title}</h4>
+                    <span className="text-[10px] text-slate-600 font-mono flex-shrink-0">
+                      {new Date(ann.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{ann.content}</p>
                 </div>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{ann.content}</p>
-              </div>
-            ))}
-            {data.recentAnnouncements.length === 0 && (
-              <div className="text-center py-8 text-sm text-slate-400">
-                No new announcements.
-              </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-600 py-4 text-center">No announcements yet.</p>
             )}
           </div>
         </div>

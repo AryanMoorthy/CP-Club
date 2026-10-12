@@ -61,6 +61,7 @@ export async function register(req, res, next) {
       data: {
         user: user.toSafeObject(),
         accessToken,
+        refreshToken,
       },
     });
   } catch (err) {
@@ -92,6 +93,7 @@ export async function login(req, res, next) {
       data: {
         user: user.toSafeObject(),
         accessToken,
+        refreshToken,
       },
     });
   } catch (err) {
@@ -106,7 +108,7 @@ export async function logout(req, res) {
 
 export async function refreshToken(req, res, next) {
   try {
-    const token = req.cookies?.refreshToken;
+    const token = req.cookies?.refreshToken || req.body?.refreshToken;
     if (!token) {
       return res.status(401).json({ success: false, message: 'Refresh token required' });
     }
@@ -118,10 +120,10 @@ export async function refreshToken(req, res, next) {
     }
 
     const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
-    setAuthCookies(res, accessToken, refreshToken);
+    const newRefreshToken = generateRefreshToken(user._id);
+    setAuthCookies(res, accessToken, newRefreshToken);
 
-    res.json({ success: true, data: { user, accessToken } });
+    res.json({ success: true, data: { user, accessToken, refreshToken: newRefreshToken } });
   } catch (err) {
     next(err);
   }
