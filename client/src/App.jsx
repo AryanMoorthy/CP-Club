@@ -21,6 +21,7 @@ import PracticeRooms from './pages/student/PracticeRooms';
 import RoomDetail from './pages/student/RoomDetail';
 import Announcements from './pages/student/Announcements';
 import Profile from './pages/student/Profile';
+import DailySolvesCalendar from './pages/student/DailySolvesCalendar';
 
 // Mentor Pages
 import SheetEditor from './pages/mentor/SheetEditor';
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="sheets/:id" element={<SheetDetail />} />
             <Route path="assignments" element={<Assignments />} />
             <Route path="leaderboards" element={<Leaderboards />} />
+            <Route path="calendar" element={<DailySolvesCalendar />} />
             <Route path="practice-rooms" element={<PracticeRooms />} />
             <Route path="practice-rooms/:id" element={<RoomDetail />} />
             <Route path="announcements" element={<Announcements />} />

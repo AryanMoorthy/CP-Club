@@ -182,3 +182,118 @@ export async function totalSolvedLeaderboard(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * GET /api/leaderboard/daily-calendar?year=YYYY&month=MM
+ * Returns counts of solves per day for the requested month (or current month) across all users.
+ */
+export async function dailySolvesCalendar(req, res, next) {
+  try {
+    const now = new Date();
+    const year = parseInt(req.query.year) || now.getFullYear();
+    const month = parseInt(req.query.month) || (now.getMonth() + 1); // 1-indexed
+
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+
+    const dailyCounts = await SolvedProblem.aggregate([
+      {
+        $match: {
+          firstAcceptedAt: { $gte: startDate, $lt: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$firstAcceptedAt' },
+          },
+          totalSolves: { $sum: 1 },
+          uniqueUsers: { $addToSet: '$user' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          date: '$_id',
+          totalSolves: 1,
+          activeUsersCount: { $size: '$uniqueUsers' },
+        },
+      },
+      { $sort: { date: 1 } },
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        month,
+        days: dailyCounts,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/leaderboard/daily-solves?date=YYYY-MM-DD
+ * Returns all problems solved on that date grouped by user.
+ */
+export async function dailySolvesByDate(req, res, next) {
+  try {
+    const dateStr = req.query.date || new Date().toISOString().slice(0, 10);
+    const [year, month, day] = dateStr.split('-').map(Number);
+
+    if (!year || !month || !day) {
+      return res.status(400).json({ success: false, message: 'Invalid date format. Use YYYY-MM-DD' });
+    }
+
+    const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+
+    const solves = await SolvedProblem.find({
+      firstAcceptedAt: { $gte: start, $lt: end },
+    })
+      .populate('user', 'name email codeforcesHandle codeforcesProfile batch')
+      .sort({ firstAcceptedAt: -1 })
+      .lean();
+
+    // Group by user
+    const userMap = new Map();
+    for (const s of solves) {
+      if (!s.user) continue;
+      const uid = s.user._id.toString();
+      if (!userMap.has(uid)) {
+        userMap.set(uid, {
+          user: s.user,
+          solves: [],
+        });
+      }
+      userMap.get(uid).solves.push({
+        contestId: s.contestId,
+        problemIndex: s.problemIndex,
+        problemName: s.problemName || `Problem ${s.problemIndex}`,
+        rating: s.rating,
+        tags: s.tags || [],
+        acceptedAt: s.firstAcceptedAt,
+        key: s.key,
+      });
+    }
+
+    const grouped = Array.from(userMap.values()).sort(
+      (a, b) => b.solves.length - a.solves.length
+    );
+
+    res.json({
+      success: true,
+      data: {
+        date: dateStr,
+        totalSolves: solves.length,
+        totalUsers: grouped.length,
+        users: grouped,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
