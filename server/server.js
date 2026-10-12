@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import app from './src/app.js';
 import { connectDB } from './src/config/db.js';
+import { scheduleEODSync, stopEODSync } from './src/services/eodSync.js';
 
 // Validate required env vars
 const REQUIRED_VARS = ['MONGODB_URI', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
@@ -16,6 +17,9 @@ const PORT = parseInt(process.env.PORT || '5000');
 async function start() {
   await connectDB(process.env.MONGODB_URI);
 
+  // Initialize automated midnight EOD sync
+  scheduleEODSync();
+
   const server = app.listen(PORT, () => {
     console.log(`🚀 CP Club API running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
   });
@@ -23,6 +27,7 @@ async function start() {
   // Graceful shutdown
   const shutdown = async (signal) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
+    stopEODSync();
     server.close(async () => {
       const { disconnectDB } = await import('./src/config/db.js');
       await disconnectDB();

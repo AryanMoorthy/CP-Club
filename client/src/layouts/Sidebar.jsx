@@ -154,7 +154,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="p-4 border-t border-slate-800/80 bg-dark-900/40">
           <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>Codeforces API: Online</span>
+            <span>EOD Sync: Daily @ Midnight</span>
           </div>
         </div>
       </aside>
