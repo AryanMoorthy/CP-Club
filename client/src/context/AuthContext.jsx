@@ -78,13 +78,14 @@ export function AuthProvider({ children }) {
     if (!user) return { success: false, error: 'Not authenticated' };
     setIsSyncingCF(true);
     try {
-      const res = await api.post('/users/sync-codeforces');
+      const res = await api.post('/users/me/codeforces/sync');
       if (res.success && res.data?.user) {
         setUser(res.data.user);
         return {
           success: true,
-          profile: res.data.profile,
-          syncedCount: res.data.syncedCount,
+          user: res.data.user,
+          stats: res.data.stats,
+          totalSolved: res.data.stats?.totalSolved,
         };
       }
       throw new Error(res.message || 'Sync failed');
@@ -97,7 +98,7 @@ export function AuthProvider({ children }) {
 
   const updateProfile = async (profileData) => {
     try {
-      const res = await api.patch('/users/profile', profileData);
+      const res = await api.patch('/users/me', profileData);
       if (res.success && res.data?.user) {
         setUser(res.data.user);
         return { success: true, user: res.data.user };

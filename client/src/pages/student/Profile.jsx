@@ -69,7 +69,7 @@ export default function Profile() {
     const res = await syncCodeforces();
     if (res.success) {
       fetchRecentSolved();
-      alert(`Synced successfully! ${res.syncedCount} new solved problems recorded.`);
+      alert(`Synced successfully with Codeforces! Total solved: ${res.totalSolved ?? 'updated'}`);
     } else {
       alert(`Sync error: ${res.error}`);
     }

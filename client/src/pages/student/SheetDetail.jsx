@@ -66,25 +66,26 @@ export default function SheetDetail() {
     setSyncingProblem(key);
 
     try {
-      // Sync with Codeforces API
-      const syncRes = await syncCodeforces();
-      if (syncRes.success) {
-        // Refresh local solved list
-        const solvedRes = await api.get('/users/solved-problems');
-        if (solvedRes.success && solvedRes.data) {
-          const updatedKeys = new Set(
-            solvedRes.data.map((p) => `${p.contestId}${p.problemIndex}`.toUpperCase())
-          );
-          setSolvedKeys(updatedKeys);
+      // Sync with Codeforces API (if not rate limited)
+      await syncCodeforces();
 
+      // Refresh local solved list
+      const solvedRes = await api.get('/users/solved-problems');
+      if (solvedRes.success && solvedRes.data) {
+        const updatedKeys = new Set(
+          solvedRes.data.map((p) => `${p.contestId}${p.problemIndex}`.toUpperCase())
+        );
+        setSolvedKeys(updatedKeys);
+
+        if (problem.contestId && problem.index) {
           if (updatedKeys.has(key)) {
             alert(`Great job! Problem ${key} is verified as ACCEPTED on Codeforces! 🎉`);
           } else {
             alert(`No accepted submission found yet on Codeforces for ${key}. Solve it first and try again!`);
           }
+        } else {
+          alert('Submissions synced successfully!');
         }
-      } else {
-        alert(`Sync failed: ${syncRes.error}`);
       }
     } catch (err) {
       alert(`Error verifying: ${err.message}`);
