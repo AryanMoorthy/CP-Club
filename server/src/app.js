@@ -60,7 +60,21 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ── Health check ─────────────────────────────────────────────────────────────
+// ── Health & Welcome checks ──────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Welcome to CP Club API',
+    version: '1.0.0',
+    healthCheck: '/api/health',
+    docs: 'https://github.com/AryanMoorthy/CP-Club'
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ success: true, message: 'CP Club API is running', ts: new Date().toISOString() });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'CP Club API is running', ts: new Date().toISOString() });
 });
