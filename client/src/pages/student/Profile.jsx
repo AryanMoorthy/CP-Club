@@ -262,13 +262,18 @@ export default function Profile() {
                   return (
                     <tr key={idx} className="hover:bg-slate-800/30 transition">
                       <td className="py-3 px-4 font-sans font-semibold text-slate-200">
-                        {item.name || `Problem ${item.problemIndex}`}
+                        {item.problemName || item.name || `Problem ${item.problemIndex}`}
                       </td>
                       <td className="py-3 px-4 text-brand-accent">
                         {item.contestId}{item.problemIndex}
                       </td>
                       <td className="py-3 px-4 text-slate-400">
-                        {new Date(item.solvedAt).toLocaleDateString()}
+                        {(() => {
+                          const dateVal = item.firstAcceptedAt || item.syncedAt || item.solvedAt;
+                          if (!dateVal) return 'Verified';
+                          const d = new Date(dateVal);
+                          return isNaN(d.getTime()) ? 'Verified' : d.toLocaleDateString();
+                        })()}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <a
