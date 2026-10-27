@@ -36,10 +36,10 @@ export default function RoomDetail() {
       ]);
 
       if (roomRes.status === 'fulfilled' && roomRes.value.success) {
-        setRoom(roomRes.value.data);
+        setRoom(roomRes.value.data?.room || roomRes.value.data);
       }
       if (boardRes.status === 'fulfilled' && boardRes.value.success) {
-        setLeaderboard(boardRes.value.data);
+        setLeaderboard(boardRes.value.data?.leaderboard || boardRes.value.data || []);
       }
     } catch (err) {
       console.error('Failed to load room:', err);
@@ -119,7 +119,7 @@ export default function RoomDetail() {
               </span>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-100">{room.title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-100">{room.name}</h1>
             <p className="text-xs text-slate-400 mt-1.5 max-w-2xl leading-relaxed">
               {room.description || 'Virtual arena with live peer standings.'}
             </p>
@@ -190,7 +190,7 @@ export default function RoomDetail() {
                           rel="noreferrer"
                           className="font-medium text-slate-200 hover:text-indigo-400 inline-flex items-center gap-1.5 transition"
                         >
-                          <span>{prob.title || `Problem ${prob.index}`}</span>
+                          <span>{prob.name || `Problem ${prob.index}`}</span>
                           <ExternalLink className="w-3 h-3 text-slate-500 opacity-60" />
                         </a>
                       </td>
