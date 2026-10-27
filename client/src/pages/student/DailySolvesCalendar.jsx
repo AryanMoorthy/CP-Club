@@ -3,6 +3,8 @@ import api from '../../services/api';
 import RatingBadge from '../../components/RatingBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -13,9 +15,13 @@ import {
   ExternalLink,
   Sparkles,
   Trophy,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function DailySolvesCalendar() {
+  const { user, syncCodeforces, isSyncingCF } = useAuth();
+  const toast = useToast();
+
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1); // 1-12
@@ -66,6 +72,23 @@ export default function DailySolvesCalendar() {
       setDayDetails(null);
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    if (!user?.codeforcesHandle) {
+      toast.info('Please connect your Codeforces handle in your profile first.');
+      return;
+    }
+    const res = await syncCodeforces();
+    if (res.success) {
+      toast.success('Codeforces submissions synced!');
+      await Promise.all([
+        fetchMonthCalendar(currentYear, currentMonth),
+        selectedDate ? fetchDaySolves(selectedDate) : Promise.resolve(),
+      ]);
+    } else {
+      toast.error(res.error || 'Sync failed');
     }
   };
 
@@ -139,8 +162,19 @@ export default function DailySolvesCalendar() {
           </p>
         </div>
 
-        {/* Month Summary Stats */}
+        {/* Month Summary Stats & Actions */}
         <div className="flex items-center gap-3">
+          {user?.codeforcesHandle && (
+            <button
+              onClick={handleSyncNow}
+              disabled={isSyncingCF}
+              className="btn-secondary text-xs flex items-center gap-2 h-10 px-3.5"
+              title="Sync your latest Codeforces submissions right now"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCF ? 'animate-spin' : ''}`} />
+              <span>{isSyncingCF ? 'Syncing…' : 'Sync My Solves'}</span>
+            </button>
+          )}
           <div className="glass-card px-4 py-2 rounded-xl border border-slate-800 text-center">
             <p className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Month Solves</p>
             <p className="text-lg font-black text-brand-accent">{totalMonthSolves}</p>
@@ -420,11 +454,27 @@ export default function DailySolvesCalendar() {
                 </div>
               ))
             ) : (
-              <div className="py-20 text-center">
+              <div className="py-20 text-center flex flex-col items-center">
                 <EmptyState
                   title="No solves recorded on this date"
-                  description="No members had verified Codeforces submissions on this day."
+                  description={
+                    selectedDate === today.toISOString().slice(0, 10)
+                      ? "Solved problems today on Codeforces? Click 'Sync My Solves' to update immediately or wait for the automatic midnight sync."
+                      : "No members had verified Codeforces submissions on this day."
+                  }
                   icon={CalendarIcon}
+                  action={
+                    selectedDate === today.toISOString().slice(0, 10) && user?.codeforcesHandle ? (
+                      <button
+                        onClick={handleSyncNow}
+                        disabled={isSyncingCF}
+                        className="btn-primary text-xs mt-3 flex items-center gap-2"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCF ? 'animate-spin' : ''}`} />
+                        <span>{isSyncingCF ? 'Syncing…' : 'Sync My Solves Now'}</span>
+                      </button>
+                    ) : null
+                  }
                 />
               </div>
             )}

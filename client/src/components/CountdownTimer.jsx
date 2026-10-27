@@ -3,7 +3,11 @@ import { Clock } from 'lucide-react';
 
 export default function CountdownTimer({ targetDate, onExpire, label = 'Time Left' }) {
   const calculateTimeLeft = () => {
-    const diff = new Date(targetDate).getTime() - Date.now();
+    if (!targetDate) return null;
+    const targetMs = new Date(targetDate).getTime();
+    if (isNaN(targetMs)) return null;
+
+    const diff = targetMs - Date.now();
     if (diff <= 0) return null;
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));

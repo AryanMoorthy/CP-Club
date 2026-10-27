@@ -96,9 +96,10 @@ export default function Assignments() {
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((assignment) => {
-            const isExpired    = new Date(assignment.deadline) < now;
-            const totalProblems = assignment.problems?.length || 0;
-            const status       = getDeadlineStatus(assignment.deadline);
+            const dueTimestamp = assignment.deadline || assignment.dueDate;
+            const isExpired    = new Date(dueTimestamp) < now;
+            const totalProblems = assignment.problems?.length || assignment.totalProblems || 0;
+            const status       = getDeadlineStatus(dueTimestamp);
 
             return (
               <div
@@ -116,14 +117,14 @@ export default function Assignments() {
                     </span>
                   </div>
 
-                  <h3 className="text-sm font-semibold text-slate-100 line-clamp-1">{assignment.title}</h3>
+                  <h3 className="text-sm font-semibold text-slate-100 line-clamp-1">{assignment.title || assignment.problemSheet?.title || 'Assignment'}</h3>
                   <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
-                    {assignment.description || 'Mandatory problem set for club members.'}
+                    {assignment.description || assignment.instructions || 'Mandatory problem set for club members.'}
                   </p>
 
                   {/* Deadline countdown */}
                   <div className="mt-3">
-                    <CountdownTimer targetDate={assignment.deadline} />
+                    <CountdownTimer targetDate={dueTimestamp} />
                   </div>
 
                   {/* Problem count */}

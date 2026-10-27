@@ -320,9 +320,9 @@ export default function Dashboard() {
             {data.activeAssignments.length > 0 ? (
               data.activeAssignments.map((a) => (
                 <div key={a._id} className="surface-inset p-3 rounded-lg">
-                  <h4 className="text-xs font-semibold text-slate-200 line-clamp-1">{a.title}</h4>
+                  <h4 className="text-xs font-semibold text-slate-200 line-clamp-1">{a.title || a.problemSheet?.title || 'Assignment'}</h4>
                   <div className="mt-2 flex items-center justify-between gap-2">
-                    <CountdownTimer targetDate={a.deadline} />
+                    <CountdownTimer targetDate={a.deadline || a.dueDate} />
                     <Link to="/assignments" className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition">
                       View →
                     </Link>
