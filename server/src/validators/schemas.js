@@ -83,6 +83,7 @@ export const practiceRoomSchema = z.object({
     contestId: z.number().int().positive(),
     index: z.string().min(1).max(5),
     name: z.string().min(1).max(500),
+    points: z.number().int().min(0).max(10000).optional().default(100),
     rating: z.number().int().optional().nullable(),
     url: z.string().url().optional().or(z.literal('')),
     order: z.number().int().min(0).optional(),

@@ -5,6 +5,7 @@ const roomProblemSchema = new mongoose.Schema({
   contestId: { type: Number, required: true },
   index: { type: String, required: true, uppercase: true },
   name: { type: String, required: true },
+  points: { type: Number, default: 100 },
   rating: { type: Number },
   url: { type: String },
   order: { type: Number, default: 0 },

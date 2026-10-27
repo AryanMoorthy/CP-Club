@@ -153,6 +153,10 @@ export async function getRoomLeaderboard(req, res, next) {
     if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
 
     const problemKeys = room.problems.map((p) => `${p.contestId}-${p.index.toUpperCase()}`);
+    // Map problem key → points for score calculation
+    const pointsMap = Object.fromEntries(
+      room.problems.map((p) => [`${p.contestId}-${p.index.toUpperCase()}`, p.points ?? 100])
+    );
     const roomStart = new Date(room.startTime);
     const roomEnd = new Date(room.endTime);
 
@@ -175,13 +179,15 @@ export async function getRoomLeaderboard(req, res, next) {
           joinedAt: p.joinedAt,
           solvedCount: solved.length,
           solvedProblems: solved.map((s) => s.key),
+          score: solved.reduce((sum, s) => sum + (pointsMap[s.key] ?? 100), 0),
         };
       })
     );
 
     participantResults.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
       if (b.solvedCount !== a.solvedCount) return b.solvedCount - a.solvedCount;
-      return 0; // deterministic tie-breaking: join order (already preserved)
+      return 0;
     });
 
     const ranked = participantResults.map((p, i) => ({ rank: i + 1, ...p }));
