@@ -269,6 +269,18 @@ export async function getUserById(req, res, next) {
   }
 }
 
+export async function getStudents(req, res, next) {
+  try {
+    const students = await User.find({ role: 'student' })
+      .select('name email codeforcesHandle avatar')
+      .sort({ name: 1 })
+      .lean();
+    res.json({ success: true, data: students });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listUsers(req, res, next) {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);

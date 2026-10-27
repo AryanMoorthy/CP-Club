@@ -9,14 +9,17 @@ import {
   getUserById,
   listUsers,
   updateUserRole,
+  getStudents,
 } from '../controllers/users.js';
 import { authenticate } from '../middleware/auth.js';
-import { requireAdmin } from '../middleware/roles.js';
+import { requireAdmin, requireMentor } from '../middleware/roles.js';
 
 const router = Router();
 
 // All user routes require auth
 router.use(authenticate);
+
+router.get('/students', requireMentor, getStudents);
 
 router.get('/me', getMe);
 router.patch('/me', updateMe);

@@ -8,72 +8,95 @@ import {
   Save,
   AlertCircle,
   FileSpreadsheet,
+  Users,
 } from 'lucide-react';
 
 export default function AssignmentEditor() {
   const navigate = useNavigate();
   const [sheets, setSheets] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const [form, setForm] = useState({
     title: '',
-    description: '',
-    sheetId: '',
-    deadline: '',
+    instructions: '',
+    problemSheet: '',
+    assignedTo: '',
+    dueDate: '',
     passPercentage: 70,
+    batch: '',
   });
 
   useEffect(() => {
-    const fetchSheets = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await api.get('/problem-sheets');
-        if (res.success && res.data) {
-          const list = Array.isArray(res.data) ? res.data : (res.data.sheets || []);
+        const [sheetsRes, studentsRes] = await Promise.allSettled([
+          api.get('/problem-sheets'),
+          api.get('/users/students'),
+        ]);
+
+        if (sheetsRes.status === 'fulfilled' && sheetsRes.value.success) {
+          const list = Array.isArray(sheetsRes.value.data)
+            ? sheetsRes.value.data
+            : (sheetsRes.value.data?.sheets || []);
           setSheets(list);
           if (list.length > 0) {
-            setForm((prev) => ({ ...prev, sheetId: list[0]._id }));
+            setForm((prev) => ({ ...prev, problemSheet: list[0]._id }));
+          }
+        }
+
+        if (studentsRes.status === 'fulfilled' && studentsRes.value.success) {
+          const list = Array.isArray(studentsRes.value.data)
+            ? studentsRes.value.data
+            : (studentsRes.value.data?.users || studentsRes.value.data?.students || []);
+          setStudents(list);
+          if (list.length > 0) {
+            setForm((prev) => ({ ...prev, assignedTo: list[0]._id }));
           }
         }
       } catch (err) {
-        console.error('Failed to fetch sheets:', err);
+        console.error('Failed to fetch data:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchSheets();
+    fetchData();
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.title || !form.deadline || !form.sheetId) {
-      setErrorMsg('Please complete all required fields.');
+    setErrorMsg('');
+
+    if (!form.title.trim()) {
+      setErrorMsg('Assignment title is required.');
+      return;
+    }
+    if (!form.problemSheet) {
+      setErrorMsg('Please select a problem sheet.');
+      return;
+    }
+    if (!form.assignedTo) {
+      setErrorMsg('Please select a student to assign to.');
+      return;
+    }
+    if (!form.dueDate) {
+      setErrorMsg('Please set a deadline.');
       return;
     }
 
-    // Grab selected sheet problems
-    const selectedSheet = sheets.find((s) => s._id === form.sheetId);
-    const problems = (selectedSheet?.problems || []).map((p) => ({
-      title: p.title,
-      contestId: p.contestId,
-      index: p.index,
-      points: 100,
-    }));
-
     const payload = {
-      title: form.title.trim(),
-      description: form.description.trim(),
-      sheetId: form.sheetId,
-      deadline: new Date(form.deadline).toISOString(),
-      passPercentage: parseInt(form.passPercentage, 10),
-      problems,
+      problemSheet: form.problemSheet,
+      assignedTo: form.assignedTo,
+      dueDate: new Date(form.dueDate).toISOString(),
+      instructions: form.instructions.trim(),
+      batch: form.batch.trim(),
     };
 
     try {
       setSaving(true);
-      setErrorMsg('');
       await api.post('/assignments', payload);
       navigate('/assignments');
     } catch (err) {
@@ -84,7 +107,7 @@ export default function AssignmentEditor() {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Loading sheet options..." />;
+    return <LoadingSpinner text="Loading options..." />;
   }
 
   return (
@@ -116,78 +139,91 @@ export default function AssignmentEditor() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-            Assignment Title *
-          </label>
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder="e.g. Week 3: Binary Search Practice"
-            required
-            className="w-full glass-input rounded-xl py-2 px-3 text-sm"
-          />
-        </div>
+      <form onSubmit={handleSubmit} noValidate className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
 
+        {/* Problem Sheet */}
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
             Select Problem Sheet *
           </label>
-          <select
-            value={form.sheetId}
-            onChange={(e) => setForm({ ...form, sheetId: e.target.value })}
-            required
-            className="w-full glass-input rounded-xl py-2 px-3 text-sm bg-dark-900"
-          >
-            {sheets.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.title} ({s.problems?.length || 0} problems) - {s.difficulty}
-              </option>
-            ))}
-          </select>
+          {sheets.length === 0 ? (
+            <p className="text-xs text-rose-400">No published sheets available. Publish a sheet first.</p>
+          ) : (
+            <select
+              value={form.problemSheet}
+              onChange={(e) => setForm({ ...form, problemSheet: e.target.value })}
+              className="w-full glass-input rounded-xl py-2 px-3 text-sm bg-dark-900"
+            >
+              {sheets.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.title} ({s.problems?.length || 0} problems) - {s.difficulty}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
+        {/* Assign To Student */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-cyan-400" />
+            Assign To Student *
+          </label>
+          {students.length === 0 ? (
+            <p className="text-xs text-slate-500">No students found.</p>
+          ) : (
+            <select
+              value={form.assignedTo}
+              onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+              className="w-full glass-input rounded-xl py-2 px-3 text-sm bg-dark-900"
+            >
+              {students.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} {s.codeforcesHandle ? `(@${s.codeforcesHandle})` : `— ${s.email}`}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Deadline */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-              Deadline Date & Time *
+              Deadline Date &amp; Time *
             </label>
             <input
               type="datetime-local"
-              value={form.deadline}
-              onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-              required
+              value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
               className="w-full glass-input rounded-xl py-2 px-3 text-sm"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-              Pass Percentage (%)
+              Batch / Group Label
             </label>
             <input
-              type="number"
-              min="10"
-              max="100"
-              value={form.passPercentage}
-              onChange={(e) => setForm({ ...form, passPercentage: e.target.value })}
-              required
-              className="w-full glass-input rounded-xl py-2 px-3 text-sm font-mono"
+              type="text"
+              value={form.batch}
+              onChange={(e) => setForm({ ...form, batch: e.target.value })}
+              placeholder="e.g. Batch A, October Cohort"
+              className="w-full glass-input rounded-xl py-2 px-3 text-sm"
             />
           </div>
         </div>
 
+        {/* Instructions */}
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
             Instructions / Description
           </label>
           <textarea
             rows={3}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            placeholder="State any specific constraints or tips for the students..."
+            value={form.instructions}
+            onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+            placeholder="State any specific constraints or tips for the student..."
             className="w-full glass-input rounded-xl py-2 px-3 text-sm resize-none"
           />
         </div>
@@ -198,7 +234,7 @@ export default function AssignmentEditor() {
           </Link>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || sheets.length === 0 || students.length === 0}
             className="btn-primary text-xs flex items-center gap-2"
           >
             <Save className="w-4 h-4" />
