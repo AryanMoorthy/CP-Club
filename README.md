@@ -64,9 +64,10 @@ College competitive programming (CP) clubs and student cohorts face persistent h
    - Students view real-time countdown badges and auto-updating progress bars.
    - Mentors view a cohort-wide completion matrix with pass/fail status.
 
-4. **Synchronized Virtual Practice Rooms**:
+4. **Synchronized Virtual Practice Rooms & Scoring**:
    - Users join timed contest rooms with live countdown clocks and linked problem sets.
-   - Real-time participant tracking and scoreboard calculation.
+   - Dynamic per-problem point values and live room leaderboard scored by solved problems, points, and penalty tracking.
+   - Live participation status and room solve synchronizations.
 
 5. **Multi-Category Club Leaderboards**:
    - Filterable rankings across:
@@ -76,7 +77,17 @@ College competitive programming (CP) clubs and student cohorts face persistent h
      - **Total Solved Problems**
    - Responsive podium displaying Top 3 with Gold, Silver, and Bronze badges.
 
-6. **Admin Member Management & Announcements**:
+6. **Interactive Daily Solves Activity Calendar**:
+   - Monthly interactive heatmap calendar aggregating all club member Codeforces submissions day by day.
+   - Visual activity color-coding (0, 1-3, 4-7, 8+ solves) and monthly aggregate solve counts.
+   - Day-detail inspector displaying exactly which students solved which problems on that date with direct Codeforces problem links.
+   - On-demand "Sync My Solves" trigger directly from the calendar interface.
+
+7. **Member Profile & Verified Submissions History**:
+   - Profile management with Codeforces handle linking and instant submission resynchronization.
+   - Complete tabular audit history of recently verified problem solves, rating tiers, and timestamped first-accepted records.
+
+8. **Admin Member Management & Announcements**:
    - Admins can promote/demote user roles (`student` ↔ `mentor` ↔ `admin`).
    - Club-wide broadcast system with priority tagging (General, Contest, Workshop, Urgent) and pin functionality.
 
@@ -95,8 +106,9 @@ College competitive programming (CP) clubs and student cohorts face persistent h
           │
           ├── [ Business Logic Controllers ]
           │      ├── Problem Sheets & Assignments
-          │      ├── Leaderboard Aggregations
-          │      └── Virtual Practice Rooms
+          │      ├── Leaderboard Aggregations & Daily Solves Calendar
+          │      ├── Virtual Practice Rooms & Scoring
+          │      └── User Profile & Solved Problems History
           │
           ├── [ External Services Layer ]
           │      └── Codeforces API Client (Axios + Cache TTL Layer)
@@ -239,10 +251,11 @@ The database provides predefined testing accounts:
 
 ## 13. Demo Video
 
-- **Video Walkthrough Link**: *(Provide your 3–5 min Loom / YouTube unlisted video link)*
+- **Video Walkthrough Link**: [https://youtu.be/UeV4t7NbvGk](https://youtu.be/UeV4t7NbvGk)
 - **Demo Highlights**:
-  1. Overview of collegiate CP club challenge & platform mission.
+  1. Overview of collegiate CP club challenges & platform mission.
   2. Student flow: Profile sync with Codeforces, rating graph interactivity, and practice sheet verification.
-  3. Mentor flow: Creating problem sheets and assigning them with deadlines.
-  4. Leaderboard & Practice Room real-time interactions.
-  5. Admin member role management.
+  3. Mentor flow: Curating problem sets, setting point values, and assigning sheets with deadlines.
+  4. Daily Solves Calendar: Community activity heatmap, date-by-date student breakdown, and direct sync.
+  5. Leaderboard & Synchronized Virtual Practice Room scoring and leaderboards.
+  6. Admin member role management and club announcements.
