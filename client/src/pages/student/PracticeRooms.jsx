@@ -149,7 +149,7 @@ export default function PracticeRooms() {
                     </span>
                   </div>
 
-                  <h3 className="text-sm font-semibold text-slate-100 line-clamp-1">{room.title}</h3>
+                  <h3 className="text-sm font-semibold text-slate-100 line-clamp-1">{room.name}</h3>
                   <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
                     {room.description || 'Virtual contest practice arena.'}
                   </p>

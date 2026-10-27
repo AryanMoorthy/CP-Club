@@ -81,12 +81,12 @@ export default function RoomEditor() {
     }
 
     const payload = {
-      title: form.title.trim(),
+      name: form.title.trim(),
       description: form.description.trim(),
       startTime: new Date(form.startTime).toISOString(),
       endTime: new Date(form.endTime).toISOString(),
-      problems: form.problems.map((p) => ({
-        title: p.title.trim() || `Problem ${p.index.toUpperCase()}`,
+      problems: form.problems.map((p, i) => ({
+        name: p.title.trim() || `Problem ${String.fromCharCode(65 + i)}`,
         contestId: parseInt(p.contestId, 10),
         index: p.index.trim().toUpperCase(),
         points: parseInt(p.points || 100, 10),
@@ -134,7 +134,7 @@ export default function RoomEditor() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} noValidate className="space-y-6">
         <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
           <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
             Room Info & Schedule
@@ -149,7 +149,6 @@ export default function RoomEditor() {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="e.g. Saturday Speed Round #4"
-              required
               className="w-full glass-input rounded-xl py-2 px-3 text-sm"
             />
           </div>
@@ -176,7 +175,6 @@ export default function RoomEditor() {
                 type="datetime-local"
                 value={form.startTime}
                 onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                required
                 className="w-full glass-input rounded-xl py-2 px-3 text-sm"
               />
             </div>
@@ -189,7 +187,6 @@ export default function RoomEditor() {
                 type="datetime-local"
                 value={form.endTime}
                 onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                required
                 className="w-full glass-input rounded-xl py-2 px-3 text-sm"
               />
             </div>
@@ -257,7 +254,6 @@ export default function RoomEditor() {
                       value={p.contestId}
                       onChange={(e) => handleProblemChange(idx, 'contestId', e.target.value)}
                       placeholder="e.g. 1"
-                      required
                       className="w-full glass-input rounded-xl py-1.5 px-3 text-xs font-mono"
                     />
                   </div>
@@ -271,7 +267,6 @@ export default function RoomEditor() {
                       value={p.index}
                       onChange={(e) => handleProblemChange(idx, 'index', e.target.value)}
                       placeholder="e.g. A"
-                      required
                       className="w-full glass-input rounded-xl py-1.5 px-3 text-xs font-mono uppercase"
                     />
                   </div>
