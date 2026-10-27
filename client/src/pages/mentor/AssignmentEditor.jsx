@@ -20,12 +20,10 @@ export default function AssignmentEditor() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const [form, setForm] = useState({
-    title: '',
     instructions: '',
     problemSheet: '',
     assignedTo: '',
     dueDate: '',
-    passPercentage: 70,
     batch: '',
   });
 
@@ -70,10 +68,6 @@ export default function AssignmentEditor() {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!form.title.trim()) {
-      setErrorMsg('Assignment title is required.');
-      return;
-    }
     if (!form.problemSheet) {
       setErrorMsg('Please select a problem sheet.');
       return;
