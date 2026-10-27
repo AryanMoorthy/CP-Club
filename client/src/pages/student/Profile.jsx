@@ -42,9 +42,9 @@ export default function Profile() {
   const fetchRecentSolved = async () => {
     try {
       setLoadingSolved(true);
-      const res = await api.get('/users/solved-problems');
+      const res = await api.get('/users/solved-problems?limit=50');
       if (res.success && res.data) {
-        setRecentSolved(res.data.slice(0, 25));
+        setRecentSolved(res.data);
       }
     } catch (err) {
       console.error('Failed to fetch solved problems:', err);
