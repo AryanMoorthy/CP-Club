@@ -41,17 +41,34 @@ export default function SheetDetail() {
       if (res.success && res.data) {
         const s = res.data.sheet || res.data;
         setSheet(s);
+
+        // Populate solved keys directly from sheet.problems if marked by server
+        const keys = new Set();
+        (s.problems || []).forEach((p) => {
+          if (p.solved) {
+            const idx = (p.index || '').toUpperCase();
+            keys.add(`${p.contestId}-${idx}`);
+            keys.add(`${p.contestId}${idx}`);
+          }
+        });
+
+        // Also fetch all user solved problems to ensure complete client sync
+        try {
+          const solvedRes = await api.get('/users/solved-problems?limit=all');
+          if (solvedRes.success && Array.isArray(solvedRes.data)) {
+            solvedRes.data.forEach((p) => {
+              const idx = (p.problemIndex || '').toUpperCase();
+              keys.add(`${p.contestId}-${idx}`);
+              keys.add(`${p.contestId}${idx}`);
+            });
+          }
+        } catch (e) {
+          console.warn('Could not fetch solved problems list:', e);
+        }
+
+        setSolvedKeys(keys);
       } else {
         setError('Sheet not found');
-      }
-
-      // Fetch user's solved problems to match against this sheet
-      const solvedRes = await api.get('/users/solved-problems');
-      if (solvedRes.success && solvedRes.data) {
-        const keys = new Set(
-          solvedRes.data.map((p) => `${p.contestId}${p.problemIndex}`.toUpperCase())
-        );
-        setSolvedKeys(keys);
       }
     } catch (err) {
       setError(err.message || 'Failed to load problem sheet');
@@ -70,29 +87,54 @@ export default function SheetDetail() {
       return;
     }
 
-    const key = problem.contestId && problem.index
-      ? `${problem.contestId}${problem.index}`.toUpperCase()
+    const rawIdx = (problem?.index || '').toUpperCase();
+    const key = problem?.contestId && rawIdx
+      ? `${problem.contestId}${rawIdx}`
+      : null;
+    const hyphenKey = problem?.contestId && rawIdx
+      ? `${problem.contestId}-${rawIdx}`
       : null;
 
     if (key) setSyncingProblem(key);
 
     try {
-      await syncCodeforces();
+      const syncRes = await syncCodeforces();
+      if (!syncRes.success) {
+        toast.error(syncRes.error || 'Sync failed');
+      }
 
-      const solvedRes = await api.get('/users/solved-problems');
-      if (solvedRes.success && solvedRes.data) {
-        const updatedKeys = new Set(
-          solvedRes.data.map((p) => `${p.contestId}${p.problemIndex}`.toUpperCase())
-        );
-        setSolvedKeys(updatedKeys);
+      // Re-fetch sheet data which runs full check on backend
+      const res = await api.get(`/problem-sheets/${id}`);
+      if (res.success && res.data) {
+        const s = res.data.sheet || res.data;
+        setSheet(s);
+
+        const keys = new Set();
+        (s.problems || []).forEach((p) => {
+          if (p.solved) {
+            const idx = (p.index || '').toUpperCase();
+            keys.add(`${p.contestId}-${idx}`);
+            keys.add(`${p.contestId}${idx}`);
+          }
+        });
+
+        const solvedRes = await api.get('/users/solved-problems?limit=all');
+        if (solvedRes.success && Array.isArray(solvedRes.data)) {
+          solvedRes.data.forEach((p) => {
+            const idx = (p.problemIndex || '').toUpperCase();
+            keys.add(`${p.contestId}-${idx}`);
+            keys.add(`${p.contestId}${idx}`);
+          });
+        }
+        setSolvedKeys(keys);
 
         if (key) {
-          if (updatedKeys.has(key)) {
+          if (keys.has(key) || (hyphenKey && keys.has(hyphenKey))) {
             toast.success(`Verified: Problem ${key} is marked Accepted!`);
           } else {
             toast.info(`No accepted submission found yet on CF for ${key}.`);
           }
-        } else {
+        } else if (syncRes.success) {
           toast.success('Synced all Codeforces submissions');
         }
       }

@@ -42,7 +42,7 @@ export async function listSheets(req, res, next) {
     const sheetsWithProgress = sheets.map((sheet) => {
       const problemCount = sheet.problems?.length || 0;
       const solvedCount = req.user
-        ? (sheet.problems || []).filter((p) => solvedKeys.has(`${p.contestId}-${p.index}`)).length
+        ? (sheet.problems || []).filter((p) => solvedKeys.has(`${p.contestId}-${(p.index || '').toUpperCase()}`)).length
         : null;
       return {
         ...sheet,

@@ -243,12 +243,17 @@ export async function getCodeforcesStats(req, res, next) {
 
 export async function getMySolvedProblems(req, res, next) {
   try {
-    const limit = Math.min(100, parseInt(req.query.limit) || 50);
-    const solved = await SolvedProblem.find({ user: req.user._id })
+    const isAll = req.query.limit === 'all';
+    const limit = isAll ? 0 : Math.min(1000, parseInt(req.query.limit) || 50);
+    const query = SolvedProblem.find({ user: req.user._id })
       .select('contestId problemIndex key problemName rating tags firstAcceptedAt syncedAt')
-      .sort({ firstAcceptedAt: -1 })
-      .limit(limit)
-      .lean();
+      .sort({ firstAcceptedAt: -1 });
+
+    if (limit > 0) {
+      query.limit(limit);
+    }
+
+    const solved = await query.lean();
     res.json({ success: true, data: solved });
   } catch (err) {
     next(err);

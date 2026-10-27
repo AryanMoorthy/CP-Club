@@ -51,7 +51,7 @@ export async function listAssignments(req, res, next) {
       const problems = a.problemSheet?.problems || [];
       const totalProblems = problems.length;
       const solvedCount = req.user.role === 'student'
-        ? problems.filter((p) => solvedKeys.has(`${p.contestId}-${p.index}`)).length
+        ? problems.filter((p) => solvedKeys.has(`${p.contestId}-${(p.index || '').toUpperCase()}`)).length
         : null;
       const status = req.user.role === 'student'
         ? deriveStatus(a, solvedCount, totalProblems)
