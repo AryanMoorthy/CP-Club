@@ -156,7 +156,11 @@ export async function getRoomLeaderboard(req, res, next) {
     const roomStart = new Date(room.startTime);
     const roomEnd = new Date(room.endTime);
 
-    // For each participant, count how many room problems they solved during the room window
+    // For each participant, count how many room problems they have solved (ever synced)
+    // We intentionally do NOT filter by room time window because:
+    //   (a) firstAcceptedAt is the all-time earliest CF solve date, not the room session date
+    //   (b) $setOnInsert means it's never updated after first sync
+    // Practice rooms track "can the participant solve these problems" not "did they solve it live"
     const participantResults = await Promise.all(
       room.participants.map(async (p) => {
         const userId = p.user._id || p.user;
@@ -164,15 +168,13 @@ export async function getRoomLeaderboard(req, res, next) {
         const solved = await SolvedProblem.find({
           user: userId,
           key: { $in: problemKeys },
-          firstAcceptedAt: { $gte: roomStart, $lte: roomEnd },
-        }).select('key firstAcceptedAt').lean();
+        }).select('key firstAcceptedAt syncedAt').lean();
 
         return {
           user: p.user,
           joinedAt: p.joinedAt,
           solvedCount: solved.length,
           solvedProblems: solved.map((s) => s.key),
-          // Note: firstAcceptedAt matches room window, but is the overall first accepted — may predate room
         };
       })
     );

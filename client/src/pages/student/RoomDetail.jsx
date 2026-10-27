@@ -89,6 +89,12 @@ export default function RoomDetail() {
   const isLive = now >= start && now <= end;
   const isEnded = now > end || room.isFinished;
 
+  // Find current user's solved keys from leaderboard
+  const myEntry = leaderboard.find(
+    (e) => (e.user?._id || e.user) === user?._id
+  );
+  const mySolvedKeys = new Set(myEntry?.solvedProblems || []);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <Link
@@ -178,8 +184,10 @@ export default function RoomDetail() {
               <tbody>
                 {(room.problems || []).map((prob, idx) => {
                   const cfLink = `https://codeforces.com/problemset/problem/${prob.contestId}/${prob.index}`;
+                  const probKey = `${prob.contestId}-${prob.index.toUpperCase()}`;
+                  const isSolved = mySolvedKeys.has(probKey);
                   return (
-                    <tr key={idx}>
+                    <tr key={idx} className={isSolved ? 'bg-emerald-500/5' : ''}>
                       <td className="text-center font-mono font-bold text-slate-400">
                         {String.fromCharCode(65 + idx)}
                       </td>
@@ -188,8 +196,13 @@ export default function RoomDetail() {
                           href={cfLink}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-medium text-slate-200 hover:text-indigo-400 inline-flex items-center gap-1.5 transition"
+                          className={`font-medium inline-flex items-center gap-1.5 transition ${
+                            isSolved
+                              ? 'text-emerald-400 hover:text-emerald-300'
+                              : 'text-slate-200 hover:text-indigo-400'
+                          }`}
                         >
+                          {isSolved && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
                           <span>{prob.name || `Problem ${prob.index}`}</span>
                           <ExternalLink className="w-3 h-3 text-slate-500 opacity-60" />
                         </a>
@@ -208,15 +221,22 @@ export default function RoomDetail() {
                         {prob.points || 100} pts
                       </td>
                       <td className="text-right">
-                        <a
-                          href={cfLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1"
-                        >
-                          Solve
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        {isSolved ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Solved
+                          </span>
+                        ) : (
+                          <a
+                            href={cfLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1"
+                          >
+                            Solve
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
                       </td>
                     </tr>
                   );
